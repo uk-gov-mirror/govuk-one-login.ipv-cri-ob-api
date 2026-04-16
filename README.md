@@ -38,6 +38,9 @@ See the Lime onboarding guide for detailed setup instructions.
 ### Run with coverage
 `npm run test:coverage`
 
+### Run Infra tests
+`npm run test:infra`
+
 Coverage reports are generated in coverage/ directory.
 
 ## Code Quality

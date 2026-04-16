@@ -23,6 +23,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:api": "echo dummy test",
+    "test:infra": "vitest run --config vitest.infra.config.ts",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
@@ -37,7 +38,9 @@
     "prettier": "3.8.1",
     "typescript": "5.9.3",
     "typescript-eslint": "8.56.0",
-    "vitest": "4.1.5"
+    "vitest": "4.1.5",
+    "yaml": "2.8.3",
+    "zod": "4.3.6"
   },
   "dependencies": {
     "@aws-lambda-powertools/logger": "2.31.0",

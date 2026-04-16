@@ -103,16 +103,25 @@ jobs:
         run: |
           aws cloudformation delete-stack --region eu-west-2 --stack-name ${{ needs.deploy-preview.outputs.stack-name }}
 
+  infra-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: ./.github/actions/node-setup
+      - name: CloudFormation template tests
+        run: npm run test:infra
+
   merge-status:
     name: Merge status
     runs-on: ubuntu-latest
     concurrency:
       group: merge-status-${{ github.event.pull_request.number }}
       cancel-in-progress: true
-    needs:
-      - pre-commit
-      - unit-tests
-      - api-tests
+    needs: [pre-commit, type-check, unit-tests, infra-tests]
     if: always()
     steps:
       - run: |
@@ -120,6 +129,7 @@ jobs:
           [[ "${{ needs.pre-commit.result }}" != "success" ]] && failed+=("pre-commit")
           [[ "${{ needs.unit-tests.result }}" != "success" ]] && failed+=("unit-tests")
           [[ "${{ needs.api-tests.result }}" != "success" ]] && failed+=("api-tests")
+          [[ "${{ needs.infra-tests.result }}" != "success" ]] && failed+=("infra-tests")
           if [[ ${#failed[@]} -gt 0 ]]; then
             echo "The following jobs failed: ${failed[*]}"
             exit 1
