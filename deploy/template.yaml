@@ -87,6 +87,10 @@ Conditions:
       - 0
   UseParameterPrefix: !Not
     - !Equals [ !Ref ParameterPrefix, "none"]
+  IsNotProduction: !Not [ !Equals [ !Ref Environment, production ] ]
+  CreateTestResourcesParam: !And
+    - !Condition IsDeployedFromPipeline
+    - !Condition IsNotProduction
 
 Globals:
   Function:
@@ -568,6 +572,16 @@ Resources:
             Condition:
               ArnLike:
                 "kms:EncryptionContext:aws:logs:arn": !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+
+  OAuthCommonStackNameParam:
+    Type: AWS::SSM::Parameter
+    Condition: CreateTestResourcesParam
+    Properties:
+      Name: /common-cri/oauth-common/stack-name
+      Type: String
+      Value: !Select [1, !Split ['/', !Select [5, !Split [':', !Ref OAuth]]]]
+      Description: The stack currently used for OAuth (oauth-common). Only required for test-resources.
+
 
   ####################################################################
   #                                                                  #
