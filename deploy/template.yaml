@@ -579,7 +579,7 @@ Resources:
     Properties:
       Name: /common-cri/oauth-common/stack-name
       Type: String
-      Value: !Select [1, !Split ['/', !Select [5, !Split [':', !Ref OAuth]]]]
+      Value: !Ref OAuth
       Description: The stack currently used for OAuth (oauth-common). Only required for test-resources.
 
 
@@ -732,7 +732,7 @@ Resources:
     Properties:
       Name: !Sub
         - "/${OAuthStackName}/clients/ipv-core-stub-local/jwtAuthentication/redirectUri"
-        - OAuthStackName: !Select [1, !Split ['/', !Select [5, !Split [':', !Ref OAuth]]]]
+        - OAuthStackName: !Ref OAuth
       Type: String
       Value: !FindInMap [ IPVCoreStubLocalMapping, !Ref Environment, redirectUri ]
 
@@ -742,7 +742,7 @@ Resources:
     Properties:
       Name: !Sub
         - "/${OAuthStackName}/clients/ipv-core-stub-local/jwtAuthentication/issuer"
-        - OAuthStackName: !Select [1, !Split ['/', !Select [5, !Split [':', !Ref OAuth]]]]
+        - OAuthStackName: !Ref OAuth
       Type: String
       Value: !FindInMap [ IPVCoreStubLocalMapping, !Ref Environment, issuer ]
 
@@ -752,7 +752,7 @@ Resources:
     Properties:
       Name: !Sub
         - "/${OAuthStackName}/clients/ipv-core-stub-local/jwtAuthentication/audience"
-        - OAuthStackName: !Select [1, !Split ['/', !Select [5, !Split [':', !Ref OAuth]]]]
+        - OAuthStackName: !Ref OAuth
       Type: String
       Value:
         !FindInMap [ IPVCoreStubLocalMapping, !Ref Environment, audience ]
@@ -763,7 +763,7 @@ Resources:
     Properties:
       Name: !Sub
         - "/${OAuthStackName}/clients/ipv-core-stub-local/jwtAuthentication/publicSigningJwkBase64"
-        - OAuthStackName: !Select [1, !Split ['/', !Select [5, !Split [':', !Ref OAuth]]]]
+        - OAuthStackName: !Ref OAuth
       Type: String
       Value: !FindInMap [ IPVCoreStubLocalMapping, !Ref Environment, publicSigningJwkBase64Mapping ]
 
@@ -773,7 +773,7 @@ Resources:
     Properties:
       Name: !Sub
         - "/${OAuthStackName}/clients/ipv-core-stub-local/jwtAuthentication/jwksEndpoint"
-        - OAuthStackName: !Select [1, !Split ['/', !Select [5, !Split [':', !Ref OAuth]]]]
+        - OAuthStackName: !Ref OAuth
       Type: String
       Value: !FindInMap [ IPVCoreStubLocalMapping, !Ref Environment, jwksEndpoint ]
 
@@ -783,7 +783,7 @@ Resources:
     Properties:
       Name: !Sub
         - "/${OAuthStackName}/clients/ipv-core-stub-local/jwtAuthentication/authenticationAlg"
-        - OAuthStackName: !Select [1, !Split ['/', !Select [5, !Split [':', !Ref OAuth]]]]
+        - OAuthStackName: !Ref OAuth
       Type: String
       Value: !FindInMap [ IPVCoreStubLocalMapping, !Ref Environment, authenticationAlg ]
 
