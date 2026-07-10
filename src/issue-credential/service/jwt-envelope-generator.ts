@@ -1,7 +1,7 @@
 import type { JWTClass } from '@govuk-one-login/data-vocab/credentials'
 
-import { requireEnv } from '@common/util/env'
 import { parseUrl } from '@common/util/url'
+import { requireEnv } from '@lib-common/util/env'
 import { randomUUID } from 'node:crypto'
 
 export type JwtEnvelopeClaims = Required<Pick<JWTClass, 'exp' | 'iss' | 'jti' | 'nbf' | 'sub'>>

@@ -24,7 +24,8 @@
     "skipLibCheck": true,
     "paths": {
       "@src/*": ["./src/*"],
-      "@common/*": ["./src/common/*"]
+      "@common/*": ["./src/common/*"],
+      "@lib-common/*": ["./src/lib-common/*"]
     }
   },
   "exclude": ["node_modules", "dist"]

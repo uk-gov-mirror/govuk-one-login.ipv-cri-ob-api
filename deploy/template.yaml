@@ -62,7 +62,7 @@ Parameters:
   ThirdPartyTokenPluginName:
     Description: "Specifies the name of the plugin used by the thirdparty token stack and support libraries"
     Type: String
-    Default: "ob_token_plugin"
+    Default: "ob-token-plugin"
   ThirdPartyTokenResourcePrefix:
     Type: String
     Default: "none"
@@ -210,7 +210,7 @@ Resources:
     Properties:
       Location:
         ApplicationId: arn:aws:serverlessrepo:eu-west-2:667736788427:applications/di-ipv-cri-oauth-common
-        SemanticVersion: 0.5.0
+        SemanticVersion: 0.7.0
       Parameters:
         AuditEventNamePrefix: !Ref AuditEventNamePrefix
         CriIdentifier: !Ref CriIdentifier
@@ -226,7 +226,6 @@ Resources:
         IPVCoreRedirectURI: https://cri.core.build.stubs.account.gov.uk/callback
         IPVCoreStubJwksEndpoint: https://cri.core.stubs.account.gov.uk/.well-known/jwks.json
         LambdaVpcConfiguration: di-devplatform-deploy
-        LambdaDeploymentPreference: !Ref LambdaDeploymentPreference
         LambdaProvisionedConcurrentExecutions: !FindInMap [ EnvironmentConfiguration, !Ref Environment, provisionedConcurrentExecutions ]
         PermissionsBoundaryArn: !If
           - UsePermissionsBoundary
@@ -251,6 +250,7 @@ Resources:
         ThirdPartyTokenPluginLayerArn: !Ref ObTokenPluginLayer
         ThirdPartyTokenResourcePrefix: !Ref ThirdPartyTokenResourcePrefix
         ThirdPartyTokenSchedulerEnabled: !If [ ThirdPartyTokenSchedulerEnabled, "true", "false" ]
+        ThirdPartyTokenScheduleExpression: "cron(0/1 * * * ? *)"
         Environment: !Ref Environment
         VpcStackName: !Ref VpcStackName
         CriIdentifier: !Ref CriIdentifier
@@ -532,11 +532,11 @@ Resources:
               - kms:Decrypt
               - kms:GenerateDataKey
             Resource: !ImportValue txma-infrastructure-AuditEventQueueEncryptionKeyArn
-    ProvisionedConcurrencyConfig:
-      !If
-      - AddProvisionedConcurrency
-      - ProvisionedConcurrentExecutions: !FindInMap [ EnvironmentConfiguration, !Ref Environment, provisionedConcurrentExecutions ]
-      - !Ref AWS::NoValue
+      ProvisionedConcurrencyConfig:
+        !If
+        - AddProvisionedConcurrency
+        - ProvisionedConcurrentExecutions: !FindInMap [ EnvironmentConfiguration, !Ref Environment, provisionedConcurrentExecutions ]
+        - !Ref AWS::NoValue
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -625,8 +625,6 @@ Resources:
             - Effect: Allow
               Action:
                 - "dynamodb:GetItem"
-                - "dynamodb:PutItem"
-                - "dynamodb:DeleteItem"
               Resource:
                 !Sub
                 - "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-thirdparty-token-table"
@@ -639,11 +637,11 @@ Resources:
                   - "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}/${ThirdPartyTokenPluginName}/*"
                   - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref AWS::StackName ]
                     ThirdPartyTokenPluginName: !Ref ThirdPartyTokenPluginName
-    ProvisionedConcurrencyConfig:
-      !If
-      - AddProvisionedConcurrency
-      - ProvisionedConcurrentExecutions: !FindInMap [ EnvironmentConfiguration, !Ref Environment, provisionedConcurrentExecutions ]
-      - !Ref AWS::NoValue
+      ProvisionedConcurrencyConfig:
+        !If
+        - AddProvisionedConcurrency
+        - ProvisionedConcurrentExecutions: !FindInMap [ EnvironmentConfiguration, !Ref Environment, provisionedConcurrentExecutions ]
+        - !Ref AWS::NoValue
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

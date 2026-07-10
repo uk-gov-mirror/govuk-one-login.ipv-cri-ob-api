@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockRetrieveToken } = vi.hoisted(() => ({
   mockRetrieveToken: vi.fn()
@@ -32,29 +32,27 @@ vi.mock('@govuk-one-login/cri-metrics', () => ({
   metrics: {}
 }))
 
-vi.mock('@common/client/dynamodb-client', () => ({
+vi.mock('@lib-common/client/dynamodb-client', () => ({
   dynamoDBDocumentClient: {}
 }))
 
-vi.mock('@src/thirdparty-async-token-common/client/token-repository', () => ({
+vi.mock('@src/thirdparty-async-token/common/client/token-repository', () => ({
   thirdPartyTokenRepository: {}
 }))
 
-vi.mock('@src/thirdparty-async-token-plugin-api/plugin-api/token-plugin-config', () => ({
+vi.mock('@src/thirdparty-async-token/plugin-api/token-plugin-config', () => ({
   thirdPartyTokenPluginConfig: {
     enabledProfiles: ['STUB'],
     expirationWindowSeconds: 300,
     itemTtlSeconds: 3300,
     maxLifetimeSeconds: 3600,
-    pluginName: 'ob_token_plugin',
-    tokenItemSuffix: '_token_ob_token_plugin'
+    pluginName: 'ob-token-plugin',
+    tokenItemSuffix: '-token-ob-token-plugin'
   }
 }))
 
-vi.mock('@src/thirdparty-async-token-consumer/service/token-retrieval-service', () => ({
-  createThirdPartyTokenRetrievalService: () => ({
-    retrieveTokenForConfigProfileName: mockRetrieveToken
-  })
+vi.mock('@src/thirdparty-async-token/consumer/token-retrieval', () => ({
+  retrieveTokenForConfigProfileName: mockRetrieveToken
 }))
 
 vi.mock('@middy/core', () => ({
@@ -76,10 +74,6 @@ describe('basic-function handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockRetrieveToken.mockResolvedValue('mock-token')
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('returns 200 with message and path when token is retrieved', async () => {

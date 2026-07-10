@@ -289,7 +289,7 @@ metrics.addMetric('TokenUpdateFailed', MetricUnit.Count, failures.length)
 
 ### Consumer Service
 
-Emit in `token-retrieval-service.ts` when returning `undefined`:
+Emit in `token-retrieval.ts` when returning `undefined`:
 
 ```typescript
 // When token is missing or expired:

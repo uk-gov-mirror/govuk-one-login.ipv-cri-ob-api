@@ -4,7 +4,7 @@
 
 We want to:
 1. **Decouple** the thirdparty-token nested stack from any specific plugin implementation
-2. Allow consumers to provide **different plugins** (not just `ob_token_plugin`) without code changes to the nested stack
+2. Allow consumers to provide **different plugins** (not just `ob-token-plugin`) without code changes to the nested stack
 3. Enable **publishing** the thirdparty-token stack as a reusable library for other CRIs
 4. Keep the **same `sam build` + `sam deploy` workflow** we use today
 
@@ -26,54 +26,54 @@ Parent stack (template.yaml)
                 - DynatraceSecretLayer                        ← from Globals
                 - ThirdPartyTokenPluginLayerArn              ← function-level, passed from parent
               Environment:
-                - THIRDPARTY_TOKEN_PLUGIN_NAME: ob_token_plugin
+                - THIRDPARTY_TOKEN_PLUGIN_NAME: ob-token-plugin
                 - THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN: <layer version ARN>
 ```
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│  Parent Stack (template.yaml)                                          │
-│                                                                        │
-│  ┌────────────────────────────────────────────┐                        │
-│  │  ObTokenPluginLayer                        │                        │
-│  │  (AWS::Serverless::LayerVersion)           │                        │
-│  │                                            │                        │
-│  │  /opt/nodejs/ob-token-plugin.mjs           │                        │
-│  │    └── exports: createPlugin()             │                        │
-│  └────────────────────┬───────────────────────┘                        │
-│                       │ !Ref (ARN)                                     │
-│                       ▼                                                │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │  ThirdPartyToken (nested stack — thirdparty-token.yaml)           │ │
-│  │                                                                   │ │
-│  │  Parameters:                                                      │ │
-│  │    ThirdPartyTokenPluginLayerArn ─────────────────────┐           │ │
-│  │    ThirdPartyTokenPluginName: ob_token_plugin         │           │ │
-│  │                                                       │           │ │
-│  │  ┌──────────────────────────────────────────────────┐ │           │ │
-│  │  │  ThirdPartyAsyncTokenFunction                    │ │           │ │
-│  │  │                                                  │ │           │ │
-│  │  │  Layers:                                         │ │           │ │
-│  │  │    - DynatraceSecretLayer         (from Globals) │ │           │ │
-│  │  │    - ThirdPartyTokenPluginLayerArn (from param)◀───┘           │ │
-│  │  │                                                  │             │ │
-│  │  │  Environment:                                    │             │ │
-│  │  │    THIRDPARTY_TOKEN_PLUGIN_NAME: ob_token_plugin │             │ │
-│  │  │    THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN: <arn>      │             │ │
-│  │  │                                                  │             │ │
-│  │  │  Code:                                           │             │ │
-│  │  │    plugin-loader.ts → import(/opt/nodejs/...)    │             │ │
-│  │  │    token-update-service.ts                       │             │ │
-│  │  │    handler/thirdparty-async-token-lambda.ts      │             │ │
-│  │  └──────────────────────────────────────────────────┘             │ │
-│  │                                                                   │ │
-│  │  ThirdPartyTokenTable (DynamoDB)                                  │ │
-│  │  EventBridge Rule (1-min cron)                                    │ │
-│  │  Canary Alarm                                                     │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-└────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Parent Stack (template.yaml)                                            │
+│                                                                          │
+│  ┌────────────────────────────────────────────┐                          │
+│  │  ObTokenPluginLayer                        │                          │
+│  │  (AWS::Serverless::LayerVersion)           │                          │
+│  │                                            │                          │
+│  │  /opt/nodejs/ob-token-plugin.mjs           │                          │
+│  │    └── exports: createPlugin()             │                          │
+│  └────────────────────┬───────────────────────┘                          │
+│                       │ !Ref (ARN)                                       │
+│                       ▼                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐ │
+│  │  ThirdPartyToken (nested stack — thirdparty-token.yaml)             │ │
+│  │                                                                     │ │
+│  │  Parameters:                                                        │ │
+│  │    ThirdPartyTokenPluginLayerArn ───────────────────────┐           │ │
+│  │    ThirdPartyTokenPluginName: ob-token-plugin           │           │ │
+│  │                                                         │           │ │
+│  │  ┌────────────────────────────────────────────────────┐ │           │ │
+│  │  │  ThirdPartyAsyncTokenFunction                      │ │           │ │
+│  │  │                                                    │ │           │ │
+│  │  │  Layers:                                           │ │           │ │
+│  │  │    - DynatraceSecretLayer         (from Globals)   │ │           │ │
+│  │  │    - ThirdPartyTokenPluginLayerArn (from param)◀─────┘           │ │
+│  │  │                                                    │             │ │
+│  │  │  Environment:                                      │             │ │
+│  │  │    THIRDPARTY_TOKEN_PLUGIN_NAME: ob-token-plugin   │             │ │
+│  │  │    THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN: <arn>        │             │ │
+│  │  │                                                    │             │ │
+│  │  │  Code:                                             │             │ │
+│  │  │    util/plugin-loader.ts → import(/opt/nodejs/...) │             │ │
+│  │  │    token-update-service.ts                         │             │ │
+│  │  │    handler/thirdparty-async-token-lambda.ts        │             │ │
+│  │  └────────────────────────────────────────────────────┘             │ │
+│  │                                                                     │ │
+│  │  ThirdPartyTokenTable (DynamoDB)                                    │ │
+│  │  EventBridge Rule (1-min cron)                                      │ │
+│  │  Canary Alarm                                                       │ │
+│  └─────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
-At runtime, the lambda derives the module path from `THIRDPARTY_TOKEN_PLUGIN_NAME` (converting `snake_case` to `kebab-case`) and dynamically imports the plugin from `/opt/nodejs/<name>.mjs`, calling the standardised `createPlugin()` factory export.
+At runtime, the lambda derives the module path from `THIRDPARTY_TOKEN_PLUGIN_NAME` and dynamically imports the plugin from `/opt/nodejs/<name>.mjs`, calling the standardised `createPlugin()` factory export.
 
 ---
 
@@ -84,7 +84,7 @@ Every plugin layer module **must** export a single factory function named `creat
 ```typescript
 // /opt/nodejs/ob-token-plugin.mjs (layer output)
 export const createPlugin = (): ThirdPartyTokenPlugin => ({
-  name: 'ob_token_plugin',
+  name: 'ob-token-plugin',
   alertStatusCodes: [401, 403],
   buildTokenRequest: (input) => { /* ... */ },
   isTokenValid: (response) => { /* ... */ },
@@ -98,13 +98,20 @@ The standardised `createPlugin` name means:
 - No naming convention to derive (no `create<Name>ThirdPartyTokenPlugin`)
 - Any CRI can provide a layer with `createPlugin` and it works immediately
 
-In this repo, the existing `createObThirdPartyTokenPlugin` function is re-exported:
+In this repo, `createObThirdPartyTokenPlugin` is the internal factory, re-exported under the standard name:
 
 ```typescript
-// src/thirdparty-async-token-plugin-ecospend/plugin/ob-token-plugin.ts
-export const createObThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({ /* ... */ })
+// src/ob-token-plugin/ob-token-plugin.ts
+const createObThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
+  name: 'ob-token-plugin',
+  alertStatusCodes: [401, 403],
+  buildTokenRequest: (input) => { /* ... */ },
+  isTokenValid: (response) => { /* ... */ },
+  mapResponse: (body) => { /* ... */ },
+  parseConfigProfile: (config) => { /* ... */ }
+})
 
-// Standard export for layer contract
+// Required for finding the plugin at runtime
 export const createPlugin = createObThirdPartyTokenPlugin
 ```
 
@@ -112,22 +119,22 @@ export const createPlugin = createObThirdPartyTokenPlugin
 
 The plugin loader derives the module path from `THIRDPARTY_TOKEN_PLUGIN_NAME`:
 
-| Plugin name (snake_case) | Layer filename (kebab-case) | Runtime path                      |
-|--------------------------|-----------------------------|-----------------------------------|
-| `ob_token_plugin`        | `ob-token-plugin.mjs`       | `/opt/nodejs/ob-token-plugin.mjs` |
-| `my_token_plugin`        | `my-token-plugin.mjs`       | `/opt/nodejs/my-token-plugin.mjs` |
+| Plugin name       | Layer filename        | Runtime path                      |
+|-------------------|-----------------------|-----------------------------------|
+| `ob-token-plugin` | `ob-token-plugin.mjs` | `/opt/nodejs/ob-token-plugin.mjs` |
+| `my-token-plugin` | `my-token-plugin.mjs` | `/opt/nodejs/my-token-plugin.mjs` |
 
-This convention exists because CloudFormation has no string transform functions — the mapping happens in the plugin loader code.
+`THIRDPARTY_TOKEN_PLUGIN_NAME` maps directly to the layer filename with no transformation.
 
 ---
 
 ## Plugin Loader
 
-`plugin-loader.ts` lives in the lambda module. It dynamically imports the plugin from the layer at cold start:
+`plugin-loader.ts` lives in the lambda module at `src/thirdparty-async-token/lambda/util/plugin-loader.ts`. It dynamically imports the plugin from the layer at cold start:
 
 ```typescript
-// src/thirdparty-async-token-lambda/plugin-loader.ts
-import type { ThirdPartyTokenPlugin } from '@src/thirdparty-async-token-plugin-api/plugin-api/token-plugin'
+// src/thirdparty-async-token/lambda/util/plugin-loader.ts
+import type { ThirdPartyTokenPlugin } from '@src/thirdparty-async-token/plugin-api/token-plugin'
 
 import { requireEnv } from '@common/util/env'
 
@@ -140,11 +147,8 @@ let cached: ThirdPartyTokenPlugin | undefined
 export const loadPlugin = async (): Promise<ThirdPartyTokenPlugin> => {
   if (cached) return cached
 
-  // Plugin names use snake_case (e.g. ob_token_plugin) but layer filenames
-  // must be kebab-case per code conventions (e.g. ob-token-plugin.mjs).
-  // CloudFormation has no string transform functions, so we derive the path here.
   const pluginName = requireEnv('THIRDPARTY_TOKEN_PLUGIN_NAME')
-  const modulePath = `/opt/nodejs/${pluginName.replaceAll('_', '-')}.mjs`
+  const modulePath = `/opt/nodejs/${pluginName}.mjs`
 
   const mod = (await import(modulePath)) as PluginModule
   cached = mod.createPlugin()
@@ -195,7 +199,8 @@ SAM does not support `BuildMethod: esbuild` for `AWS::Serverless::LayerVersion`.
 ```makefile
 # Makefile (project root)
 build-ObTokenPluginLayer:
-	./node_modules/.bin/esbuild src/thirdparty-async-token-plugin-ecospend/plugin/ob-token-plugin.ts \
+	npm ci --omit=dev
+	./node_modules/.bin/esbuild src/ob-token-plugin/ob-token-plugin.ts \
 		--bundle \
 		--platform=node \
 		--target=node24 \
@@ -291,29 +296,29 @@ On canary failure, CodeDeploy rolls back:
 ### Unit Testing — Plugin Loader
 
 ```typescript
-// test/unit/thirdparty-async-token-lambda/plugin-loader.test.ts
+// test/unit/thirdparty-async-token/lambda/plugin-loader.test.ts
 describe('loadPlugin', () => {
   it('loads plugin from layer path derived from THIRDPARTY_TOKEN_PLUGIN_NAME', async () => {
-    vi.stubEnv('THIRDPARTY_TOKEN_PLUGIN_NAME', 'test_plugin')
+    vi.stubEnv('THIRDPARTY_TOKEN_PLUGIN_NAME', 'test-plugin')
     vi.mock('/opt/nodejs/test-plugin.mjs', () => ({
       createPlugin: () => mockPlugin
     }))
 
-    const { loadPlugin } = await import('@src/thirdparty-async-token-lambda/plugin-loader')
+    const { loadPlugin } = await import('@src/thirdparty-async-token/lambda/util/plugin-loader')
     const plugin = await loadPlugin()
-    expect(plugin.name).toBe('test_plugin')
+    expect(plugin.name).toBe('test-plugin')
   })
 
   it('throws if THIRDPARTY_TOKEN_PLUGIN_NAME is not set', async () => {
     delete process.env['THIRDPARTY_TOKEN_PLUGIN_NAME']
-    const { loadPlugin } = await import('@src/thirdparty-async-token-lambda/plugin-loader')
+    const { loadPlugin } = await import('@src/thirdparty-async-token/lambda/util/plugin-loader')
     await expect(loadPlugin()).rejects.toThrow('THIRDPARTY_TOKEN_PLUGIN_NAME')
   })
 
   it('throws if layer module does not export createPlugin', async () => {
-    vi.stubEnv('THIRDPARTY_TOKEN_PLUGIN_NAME', 'bad_plugin')
+    vi.stubEnv('THIRDPARTY_TOKEN_PLUGIN_NAME', 'bad-plugin')
     vi.mock('/opt/nodejs/bad-plugin.mjs', () => ({}))
-    const { loadPlugin } = await import('@src/thirdparty-async-token-lambda/plugin-loader')
+    const { loadPlugin } = await import('@src/thirdparty-async-token/lambda/util/plugin-loader')
     await expect(loadPlugin()).rejects.toThrow()
   })
 })
@@ -340,7 +345,7 @@ describe('ObTokenPluginLayer build output', () => {
     expect(typeof mod.createPlugin).toBe('function')
 
     const plugin = mod.createPlugin()
-    expect(plugin.name).toBe('ob_token_plugin')
+    expect(plugin.name).toBe('ob-token-plugin')
     expect(plugin.alertStatusCodes).toEqual([401, 403])
     expect(typeof plugin.buildTokenRequest).toBe('function')
     expect(typeof plugin.isTokenValid).toBe('function')
@@ -354,16 +359,16 @@ describe('ObTokenPluginLayer build output', () => {
 
 ## Decisions
 
-| Decision                            | Choice                                                | Rationale                                                                                                            |
-|-------------------------------------|-------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| Plugin module path                  | Derived from `THIRDPARTY_TOKEN_PLUGIN_NAME` in loader | CloudFormation has no string transforms; snake_case plugin names vs kebab-case filenames requires code-level mapping |
-| `cri-logger` in the layer           | Bundle                                                | ESM modules in `/opt/nodejs/` cannot resolve bare specifiers from `/var/task/node_modules/`                          |
-| Layer build method                  | Makefile                                              | SAM does not support `BuildMethod: esbuild` for `AWS::Serverless::LayerVersion`                                      |
-| Service wiring                      | Module-level singleton via `await loadPlugin()`       | Follows code conventions (module-level singletons, top-level await for async config)                                 |
-| Export convention                   | Standardised `createPlugin`                           | Universal — any plugin works without the loader knowing its name                                                     |
-| Error handling in loader            | No try/catch — let errors propagate                   | Loud failure at cold start triggers canary alarm and rollback                                                        |
-| Layer is mandatory                  | No condition/fallback                                 | Plugin layer is required for the lambda to function; fail fast if missing                                            |
-| `THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN` | Always set as env var                                 | Guarantees `AutoPublishAlias` fires on layer changes — not dependent on SAM diffing logic                            |
+| Decision                            | Choice                                                | Rationale                                                                                   |
+|-------------------------------------|-------------------------------------------------------|---------------------------------------------------------------------------------------------|
+| Plugin module path                  | Derived from `THIRDPARTY_TOKEN_PLUGIN_NAME` in loader | `THIRDPARTY_TOKEN_PLUGIN_NAME` is used verbatim as `/opt/nodejs/${pluginName}.mjs`          |
+| `cri-logger` in the layer           | Bundle                                                | ESM modules in `/opt/nodejs/` cannot resolve bare specifiers from `/var/task/node_modules/` |
+| Layer build method                  | Makefile                                              | SAM does not support `BuildMethod: esbuild` for `AWS::Serverless::LayerVersion`             |
+| Service wiring                      | Module-level singleton via `await loadPlugin()`       | Follows code conventions (module-level singletons, top-level await for async config)        |
+| Export convention                   | Standardised `createPlugin`                           | Universal — any plugin works without the loader knowing its name                            |
+| Error handling in loader            | No try/catch — let errors propagate                   | Loud failure at cold start triggers canary alarm and rollback                               |
+| Layer is mandatory                  | No condition/fallback                                 | Plugin layer is required for the lambda to function; fail fast if missing                   |
+| `THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN` | Always set as env var                                 | Guarantees `AutoPublishAlias` fires on layer changes — not dependent on SAM diffing logic   |
 
 ---
 
@@ -372,17 +377,17 @@ describe('ObTokenPluginLayer build output', () => {
 ### Upsides
 
 - **True decoupling** — nested stack has zero compile-time knowledge of any plugin
-- **Independent versioning** — plugin layer can be versioned/rolled back independently of the lambda
+- **Independent versioning** — plugin layer and lambda code have separate rollback boundaries. Rolling back a bad plugin does not affect the lambda code and vice versa. A bundled library approach would lose this.
 - **Reusable nested stack** — another CRI passes their own layer ARN, no code changes
 - **Clean library extraction** — when published, consumers just pass a layer ARN parameter
 - **Built-in deployment validation** — bootstrap on cold start validates the layer immediately
 - **Safe deployments** — canary deployment catches plugin failures before full rollout
 - **No forking** — new CRIs implement the contract and plug in, no source changes needed
+- **SAR is the library** — SAR is infrastructure-native packaging for a deployable unit, equivalent to an npm publish for code. The consumer experience (reference a versioned artifact, pass parameters) is the same mental model as depending on a library — no fork, no copy, just a version pin.
 
 ### Downsides
 
 - **Dynamic import** — loses static type safety at the import boundary; mitigated by `PluginModule` interface and bootstrap failure on bad exports
-- **Naming convention** — plugin name must map to filename via `_` → `-`; simple and documented but implicit
 - **Duplicate `cri-logger`** — bundled in both layer and lambda (~93KB compressed total); necessary due to ESM module resolution from `/opt`
 - **5 layer limit** — one slot consumed (Dynatrace uses one); 3 remaining
 
@@ -400,7 +405,7 @@ Publish the token stack code as an npm package. Consumers write shim files that 
 - The layer approach keeps the nested stack truly self-contained; consumers only pass an ARN
 - Layer enables independent deployment of plugin fixes without redeploying the lambda code
 
-**When to use shims instead:** If you need maximum tree-shaking, zero cold start penalty, and static type safety across the boundary.
+**When to use shims instead:** If you need maximum tree-shaking or static type safety across the boundary. Note this comes at the cost of the independent rollback boundary and the ability to deploy plugin fixes without redeploying the lambda.
 
 ### SAR (Serverless Application Repository)
 
@@ -427,7 +432,7 @@ This was out of scope for the initial implementation due to SAR publishing setup
 Once the thirdparty-token stack is published to SAR, another CRI adopts it by:
 
 1. Creating their plugin implementing `ThirdPartyTokenPlugin` with `export const createPlugin`
-2. Building it as a layer in their parent stack (filename must be kebab-case of plugin name)
+2. Building it as a layer in their parent stack (filename must match the plugin name exactly)
 3. Referencing the SAR application and passing `ThirdPartyTokenPluginLayerArn`
 
 ```yaml
@@ -448,37 +453,40 @@ ThirdPartyToken:
       SemanticVersion: 1.0.0
     Parameters:
       ThirdPartyTokenPluginLayerArn: !Ref MyTokenPluginLayer
-      ThirdPartyTokenPluginName: my_token_plugin
+      ThirdPartyTokenPluginName: my-token-plugin
       # ...
 ```
 
 The contract:
-- Layer contains `/opt/nodejs/my-token-plugin.mjs` (kebab-case of `my_token_plugin`)
+- Layer contains `/opt/nodejs/my-token-plugin.mjs` (matches `my-token-plugin`)
 - Module exports `createPlugin()` returning a `ThirdPartyTokenPlugin`
 
 No fork needed, no code changes to the published stack.
 
 ---
 
-## Remaining Work
+## Target Architecture
+
+The items below describe the intended final state of this design — kept here so the architecture goal stays visible alongside the code.
 
 ### Publish plugin-api as an npm package
-- Publish `thirdparty-async-token-plugin-api` as a standalone npm package
+- Publish `src/thirdparty-async-token/plugin-api/` as a standalone npm package
 - Contains the plugin interface types (`ThirdPartyTokenPlugin`, `PluginInput`, `ThirdPartyTokenRequestConfig`, `ThirdPartyTokenResponse`) and `ThirdPartyTokenPluginConfig`
 - Plugin authors depend on this for type safety when implementing `createPlugin`
+- Once published, `src/ob-token-plugin/` should switch from the local path import to the published package
 
 ### Publish common as an npm package
-- Publish `thirdparty-async-token-common` as a standalone npm package
+- Publish `src/thirdparty-async-token/common/` as a standalone npm package
 - Contains token repository client, token entity types, and utility functions (expiry checks, naming)
 - Depended on by both the consumer library and the SAR lambda
 
 ### Publish consumer as an npm package
-- Publish `thirdparty-async-token-consumer` as a standalone npm package
-- Contains `ThirdPartyTokenRetrievalService` — used by other lambdas that read cached tokens from DynamoDB
-- Depends on `thirdparty-async-token-common`
+- Publish `src/thirdparty-async-token/consumer/` as a standalone npm package
+- Contains `retrieveTokenForConfigProfileName` — used by other lambdas that read cached tokens from DynamoDB
+- Depends on `src/thirdparty-async-token/common/`
 
 ### Publish to SAR
-- Package the nested stack (`thirdparty-token.yaml` + lambda code including plugin-loader and service) for SAR
-- Lambda bundle includes `thirdparty-async-token-common` as a dependency
+- Package the nested stack (`deploy/thirdparty-token.yaml` + lambda code at `src/thirdparty-async-token/lambda/` including plugin-loader and service) for SAR
+- Lambda bundle includes `src/thirdparty-async-token/common/` as a dependency
 - Set up versioning and CI pipeline for SAR publishing
 - Consumers reference via `ApplicationId` + `SemanticVersion` and provide their own plugin layer

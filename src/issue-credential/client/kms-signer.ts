@@ -1,6 +1,6 @@
 import { KMSClient, MessageType, SignCommand, SigningAlgorithmSpec } from '@aws-sdk/client-kms'
-import { requireEnv } from '@common/util/env'
 import { captureMetricWithDimensions, MetricUnit } from '@govuk-one-login/cri-metrics'
+import { requireEnv } from '@lib-common/util/env'
 import { SigningError } from '@src/issue-credential/error'
 import {
   KMS_SIGN_LATENCY_METRIC_NAME,

@@ -1,7 +1,7 @@
 import type { IdentityCheckCredentialJWTClass } from '@govuk-one-login/data-vocab/credentials'
 import type { KmsSigner } from '@src/issue-credential/client/kms-signer'
 
-import { requireEnv } from '@common/util/env'
+import { requireEnv } from '@lib-common/util/env'
 import { kmsSigner } from '@src/issue-credential/client/kms-signer'
 import { derToJose } from 'ecdsa-sig-formatter'
 import { createHash } from 'node:crypto'

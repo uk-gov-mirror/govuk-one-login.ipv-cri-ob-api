@@ -46,7 +46,7 @@ Maintains a continuously valid third-party access token in DynamoDB, refreshed e
 On every cold start, before the handler is registered:
 
 1. **Load plugin** — `await loadPlugin()` dynamically imports from the layer
-2. **Load config** — `await createThirdPartyTokenPluginConfig()` fetches SSM config (enabled profiles, TTLs)
+2. **Load config** — `thirdPartyTokenPluginConfig` is resolved via top-level await in `token-plugin-config.ts` on module import, fetching SSM config (enabled profiles, TTLs)
 3. **Force update all profiles** — `await updateForAllEnabledProfiles(true)` fetches fresh tokens for every enabled profile
 
 If any step fails, the Lambda invocation errors → canary alarm fires → CodeDeploy rolls back.
@@ -110,11 +110,12 @@ Config is read from SSM at two levels:
 ```
 
 Contains:
-| Key | Description |
-|-----|-------------|
-| `enabledProfiles` | Pipe-separated list of profile prefixes (e.g. `STUB|UAT`) |
-| `maxAllowedLifetimeSeconds` | Maximum token lifetime |
-| `tokenExpirationWindowSeconds` | How early to refresh before expiry |
+
+| Key                            | Description                                                |
+|--------------------------------|------------------------------------------------------------|
+| `enabledProfiles`              | Pipe-separated list of profile prefixes (e.g. `STUB\|UAT`) |
+| `maxAllowedLifetimeSeconds`    | Maximum token lifetime                                     |
+| `tokenExpirationWindowSeconds` | How early to refresh before expiry                         |
 
 **Profile-level config** (read per-profile on each invocation):
 ```
@@ -122,6 +123,19 @@ Contains:
 ```
 
 Contains plugin-specific secrets (e.g. `client-id`, `client-secret`, `endpoint-url`). The plugin's `parseConfigProfile` validates and types this.
+
+### Derived runtime config (`ThirdPartyTokenPluginConfig`)
+
+After loading SSM values, `createThirdPartyTokenPluginConfig` computes and exposes:
+
+| Field                     | Description                                                                  |
+|---------------------------|------------------------------------------------------------------------------|
+| `enabledProfiles`         | Parsed array of profile prefixes from the pipe-separated SSM value           |
+| `maxLifetimeSeconds`      | `maxAllowedLifetimeSeconds` from SSM                                         |
+| `expirationWindowSeconds` | `tokenExpirationWindowSeconds` from SSM                                      |
+| `itemTtlSeconds`          | `maxLifetimeSeconds - expirationWindowSeconds` — the TTL written to DynamoDB |
+| `pluginName`              | Value of `THIRDPARTY_TOKEN_PLUGIN_NAME`                                      |
+| `tokenItemSuffix`         | `-token-${pluginName}` — appended to `tokenPrefix` to form the DynamoDB key  |
 
 ### Environment Variables
 
@@ -140,7 +154,7 @@ Table: `${ParentStackName}-thirdparty-token-table`
 
 | Field        | Type                   | Description                                             |
 |--------------|------------------------|---------------------------------------------------------|
-| `id`         | String (partition key) | Token name: `${tokenPrefix}_token_${pluginName}`        |
+| `id`         | String (partition key) | Token name: `${tokenPrefix}-token-${pluginName}`        |
 | `tokenValue` | String                 | The cached access token                                 |
 | `ttl`        | Number                 | Unix epoch seconds — DynamoDB TTL for automatic cleanup |
 
@@ -150,15 +164,17 @@ TTL is calculated as: `now + itemTtlSeconds` where `itemTtlSeconds = maxLifetime
 
 ## Token Consumer
 
-Other lambdas read cached tokens via `ThirdPartyTokenRetrievalService`:
+Other lambdas read cached tokens via `retrieveTokenForConfigProfileName`:
 
 ```typescript
-const token = await tokenRetrievalService.retrieveTokenForConfigProfileName(profileName)
+const token = await retrieveTokenForConfigProfileName(configProfileName) // e.g ConfigProfileName: 'LIVE' | 'STUB' | 'UAT'
 ```
 
 Returns:
-- The token value if it exists and hasn't expired
-- `undefined` if no token exists or TTL has passed
+- The token value if it exists and is safe to use
+- `undefined` if no token exists or the token is within 30 seconds of its TTL (`TOKEN_EXPIRY_PAD_SECONDS`)
+
+Note: the consumer uses `isThirdPartyTokenExpired` (with a 30s pad) rather than `isThirdPartyTokenNearExpiration` — consumers should use the token until the last safe moment, not trigger a refresh.
 
 The consumer does **not** refresh tokens — it only reads. The async lambda is solely responsible for keeping tokens fresh.
 
@@ -227,25 +243,24 @@ The lambda runs in protected subnets with access to:
 
 ```
 src/
-  thirdparty-async-token-lambda/
-    handler/thirdparty-async-token-lambda.ts   ← entry point, bootstrap, handler
-    service/token-update-service.ts            ← token refresh logic + HTTP calls
-    plugin-loader.ts                           ← dynamic import from layer
+  thirdparty-async-token/
+    lambda/
+      handler/thirdparty-async-token-lambda.ts   ← entry point, bootstrap, handler
+      service/token-update-service.ts            ← token refresh logic + HTTP calls
+      util/plugin-loader.ts                      ← reads THIRDPARTY_TOKEN_PLUGIN_NAME, imports /opt/nodejs/${pluginName}.mjs, calls createPlugin(), caches the result
+    plugin-api/
+      token-plugin.ts                            ← ThirdPartyTokenPlugin interface
+      token-plugin-config.ts                     ← SSM config loading + validation
+    common/
+      client/token-repository.ts                 ← DynamoDB get/put/delete
+      types/token-entity.ts                      ← TokenEntity type
+      util/token-expiry.ts                       ← expiry checks
+      util/token-naming.ts                       ← getThirdPartyTokenName
+    consumer/
+      token-retrieval.ts                         ← read-only token access for other lambdas
 
-  thirdparty-async-token-plugin-api/
-    plugin-api/token-plugin.ts                 ← ThirdPartyTokenPlugin interface
-    plugin-api/token-plugin-config.ts          ← SSM config loading + validation
-
-  thirdparty-async-token-common/
-    client/token-repository.ts                 ← DynamoDB get/put/delete
-    types/token-entity.ts                      ← TokenEntity type
-    util/token-entity-util.ts                  ← expiry checks, naming helpers
-
-  thirdparty-async-token-consumer/
-    service/token-retrieval-service.ts         ← read-only token access for other lambdas
-
-  thirdparty-async-token-plugin-ecospend/
-    plugin/ob-token-plugin.ts                  ← OB plugin implementation (in layer)
+  ob-token-plugin/
+    ob-token-plugin.ts                           ← OB plugin implementation (in layer)
 ```
 
 ---

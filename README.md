@@ -125,25 +125,27 @@ Acceptance tests are run in the pipeline against the deployed environment. They 
 
 Detailed documentation for key subsystems lives under `docs/`.
 
-### Code Conventions
-[`docs/conventions/code.md`](docs/conventions/code.md)
-
-Covers TypeScript/ESM conventions, Prettier/ESLint config, naming, project structure, Lambda handler patterns (API Gateway and async/scheduled), dependency injection, error handling, fetch pipeline pattern, logging, metrics, and testing conventions.
-
 ### OAuth ClientId → Profile Mappings (Test Data Strategy)
 [`docs/conventions/test-data-strategy-oauth-clientid-profile-mappings.md`](docs/conventions/test-data-strategy-oauth-clientid-profile-mappings.md)
 
 Explains how OAuth `clientId` values are mapped to config profiles (`STUB`, `UAT`, `LIVE`) at runtime, the SSM parameter layout used (namespace-based under `/{stack-name}/{namespace}/profiles/{PROFILE_NAME}/`), and how to implement a new endpoint connection using `ConfigProvider`, `ssmConfigProvider`, and zod validation.
 
-### Thirdparty Async Token — Operation & Design
+### Thirdparty Async Token
+
+#### Operation & Design
 [`docs/lambdas/async-token/thirdparty-async-token-design.md`](docs/lambdas/async-token/thirdparty-async-token-design.md)
 
 Covers the scheduled token refresh mechanism: Lambda lifecycle (cold-start bootstrap vs. 1-minute scheduled runs), token update logic, DynamoDB storage schema, TTL/expiry timing, environment variables, error handling matrix, and module structure.
 
-### Thirdparty Token Plugin Architecture
+#### Plugin Architecture
 [`docs/lambdas/async-token/thirdparty-token-plugin-architecture.md`](docs/lambdas/async-token/thirdparty-token-plugin-architecture.md)
 
-Describes the Lambda Layer plugin injection pattern used to decouple the `thirdparty-token` nested stack from any specific plugin implementation. Covers the `createPlugin()` contract, plugin filename convention (`snake_case` → `kebab-case`), the `plugin-loader.ts` dynamic import mechanism, layer build via Makefile, canary deployment guarantee via `THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN`, and the roadmap for SAR publication.
+Describes the Lambda Layer plugin injection pattern used to decouple the `thirdparty-token` nested stack from any specific plugin implementation. Covers the `createPlugin()` contract, plugin filename convention, the `plugin-loader.ts` dynamic import mechanism, layer build via Makefile, canary deployment guarantee via `THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN`, and the target architecture for SAR publication.
+
+#### Plugin Layer — Authoring Guide
+[`docs/lambdas/async-token/plugin-layer-authoring-guide.md`](docs/lambdas/async-token/plugin-layer-authoring-guide.md)
+
+Step-by-step guide for implementing a new plugin layer: plugin contract, Makefile build, layer resource, nested stack wiring, SSM parameters, and deployment validation.
 
 ### RFCs
 

@@ -13,7 +13,7 @@ Parameters:
     Type: String
   ThirdPartyTokenPluginName:
     Type: String
-    Default: "ob_token_plugin"
+    Default: "ob-token-plugin"
   ThirdPartyTokenResourcePrefix:
     Type: String
     Default: "none"
@@ -25,6 +25,10 @@ Parameters:
     Default: "false"
     AllowedValues: [ "true", "false" ]
     Description: "Enable the 1-minute EventBridge cron. Defaults to false for dev stacks that consume tokens from the pipeline stack."
+  ThirdPartyTokenScheduleExpression:
+    Type: String
+    Description: "EventBridge schedule expression for the token refresh cron. Defaults to every 1 minute. Slower schedules increase token recovery time on refresh failure."
+    Default: "cron(0/1 * * * ? *)"
   Environment:
     Description: The environment type
     Type: "String"
@@ -214,7 +218,7 @@ Resources:
         OutExtension:
           - .js=.mjs
         EntryPoints:
-          - src/thirdparty-async-token-lambda/handler/thirdparty-async-token-lambda.ts
+          - src/thirdparty-async-token/lambda/handler/thirdparty-async-token-lambda.ts
         External:
           - "@aws-sdk/*"
         Banner:
@@ -239,8 +243,8 @@ Resources:
     Type: AWS::Events::Rule
     Condition: ThirdPartyTokenSchedulerEnabled
     Properties:
-      Description: "Triggers a third-party token scheduler event every minute"
-      ScheduleExpression: "cron(0/1 * * * ? *)"
+      Description: "Triggers a third-party token refresh on the configured schedule"
+      ScheduleExpression: !Ref ThirdPartyTokenScheduleExpression
       # Disables ThirdPartyAsync outside of pipeline
       # non-pipeline stacks in dev will consume the token from the main stack
       State: ENABLED

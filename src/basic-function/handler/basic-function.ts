@@ -8,21 +8,12 @@ import {
   logMetrics,
   resultRecorder
 } from '@common/handler/middleware'
-import { getConfigProfileNameFromClientId } from '@common/util/client-config-profile-resolver'
 import { logger } from '@govuk-one-login/cri-logger'
 import { metrics } from '@govuk-one-login/cri-metrics'
-import { thirdPartyTokenRepository } from '@src/thirdparty-async-token-common/client/token-repository'
-import { createThirdPartyTokenRetrievalService } from '@src/thirdparty-async-token-consumer/service/token-retrieval-service'
-import { thirdPartyTokenPluginConfig } from '@src/thirdparty-async-token-plugin-api/plugin-api/token-plugin-config'
+import { getConfigProfileNameFromClientId } from '@lib-common/util/client-config-profile-resolver'
+import { retrieveTokenForConfigProfileName } from '@src/thirdparty-async-token/consumer/token-retrieval'
 
 import middy from '@middy/core'
-
-logger.info('Initializing Basic Function Lambda...')
-
-const thirdPartyTokenRetrievalService = createThirdPartyTokenRetrievalService(
-  thirdPartyTokenRepository,
-  thirdPartyTokenPluginConfig
-)
 
 const lambdaHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   logger.info('Lambda invoked')
@@ -30,8 +21,7 @@ const lambdaHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPro
   // ThirdParty Token Example
   const clientIdFromSessionItem = 'ipv-core'
   const configProfileName = getConfigProfileNameFromClientId(clientIdFromSessionItem)
-  const tokenValue =
-    await thirdPartyTokenRetrievalService.retrieveTokenForConfigProfileName(configProfileName)
+  const tokenValue = await retrieveTokenForConfigProfileName(configProfileName)
 
   logger.info(`Token retrieved: ${!!tokenValue}`)
 

@@ -54,7 +54,6 @@
     "@aws-lambda-powertools/parameters": "2.31.0",
     "@aws-sdk/client-dynamodb": "3.1070.0",
     "@aws-sdk/client-kms": "3.1070.0",
-    "@aws-sdk/client-lambda": "3.1070.0",
     "@aws-sdk/lib-dynamodb": "3.1070.0",
     "@govuk-one-login/cri-audit": "1.0.3",
     "@govuk-one-login/cri-error-response": "1.0.0",

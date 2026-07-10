@@ -7,7 +7,7 @@
 
 build-ObTokenPluginLayer:
 	npm ci --omit=dev
-	./node_modules/.bin/esbuild src/thirdparty-async-token-plugin-ecospend/plugin/ob-token-plugin.ts \
+	./node_modules/.bin/esbuild src/ob-token-plugin/ob-token-plugin.ts \
 		--bundle \
 		--platform=node \
 		--target=node24 \
