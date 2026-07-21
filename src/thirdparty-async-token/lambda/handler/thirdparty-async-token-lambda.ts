@@ -24,15 +24,17 @@ const updateForProfile = async (
   pluginInput: PluginInput,
   tokenForceUpdate: boolean
 ): Promise<TokenUpdateResult> => {
-  logger.appendKeys({ tokenPrefix: pluginInput.tokenPrefix })
-  logger.info(`Updating token for ${pluginInput.tokenPrefix}`)
+  logger.info(`Updating token for ${pluginInput.tokenPrefix}`, {
+    tokenPrefix: pluginInput.tokenPrefix
+  })
 
   const tokenUpdateResult = await tokenUpdateService.updateTokenIfNeeded(
     pluginInput,
     tokenForceUpdate
   )
   logger.info(
-    `Third-party token update status ${tokenUpdateResult.updated} - ${tokenUpdateResult.message}`
+    `Third-party token update status ${tokenUpdateResult.updated} - ${tokenUpdateResult.message}`,
+    { tokenPrefix: pluginInput.tokenPrefix }
   )
 
   return tokenUpdateResult
