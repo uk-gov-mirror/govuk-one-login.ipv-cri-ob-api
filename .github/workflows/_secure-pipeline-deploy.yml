@@ -67,11 +67,13 @@ jobs:
           pull-repository: true
 
       # Workaround: devplatform-upload-action only signs Functions/Layers found
-      # in the top-level template. Functions inside nested AWS::Serverless::Application
-      # stacks are not discovered. This step cd's into each nested stack directory
-      # and runs sam package directly, signing the nested functions and rewriting
-      # their CodeUri to signed S3 URIs. The upload action's subsequent sam package
-      # then sees the nested resources are already packaged and preserves them.
+      # in the top-level template and writes provenance metadata (repository, commitsha
+      # etc.) to their S3 objects. Functions inside nested AWS::Serverless::Application
+      # stacks are not discovered. This step iterates sam build output directories for
+      # each nested stack, runs sam package to sign and upload their functions, then
+      # writes the same provenance metadata to the S3 objects directly. The upload
+      # action's subsequent sam package then sees the nested resources are already
+      # packaged and preserves them.
       - name: Sign nested stack functions
         working-directory: .aws-sam/build
         env:
@@ -80,21 +82,43 @@ jobs:
         run: |
           [[ -z "$SIGNING_PROFILE" ]] && echo "No signing profile set, skipping" && exit 0
 
+          head_message=$(git log -1 --format=%s)
+
+          release_metadata=(
+            "commitsha=${GITHUB_SHA}"
+            "committag=$(git describe --tags --first-parent --always)"
+            "commitmessage='$(echo "${head_message//\'/\\\'}" | head -n 1 | cut -c1-50)'"
+            "mergetime=$(TZ=UTC0 git log -1 --format=%cd --date=format-local:"%F %T")"
+            "commitauthor='${GITHUB_ACTOR}'"
+            "repository=${GITHUB_REPOSITORY}"
+          )
+          metadata=$(IFS="," && echo "${release_metadata[*]}")
+
           for stack in $(yq '.Resources[] | select(.Type=="AWS::Serverless::Application") | key' template.yaml); do
-            location=$(yq ".Resources.${stack}.Properties.Location" template.yaml)
-            [[ -f "$location" ]] || continue
+            # sam build outputs nested stacks to ./<StackName>/template.yaml regardless of the original Location
+            built_template="${stack}/template.yaml"
+            [[ -f "$built_template" ]] || continue
             signing_args=""
-            for resource in $(yq '.Resources[] | select(.Type=="AWS::Serverless::Function" or .Type=="AWS::Serverless::LayerVersion") | key' "$location"); do
+            for resource in $(yq '.Resources[] | select(.Type=="AWS::Serverless::Function" or .Type=="AWS::Serverless::LayerVersion") | key' "$built_template"); do
               signing_args+="${resource}=${SIGNING_PROFILE} "
             done
             if [[ -n "$signing_args" ]]; then
               echo "Signing nested resources in $stack: $signing_args"
-              (cd "$(dirname "$location")" && sam package \
-                --template-file "$(basename "$location")" \
-                --output-template-file "$(basename "$location").packaged" \
+              (cd "$stack" && sam package \
+                --template-file template.yaml \
+                --output-template-file template.yaml.packaged \
                 --s3-bucket "$ARTIFACT_BUCKET" \
                 --signing-profiles $signing_args \
-                && mv "$(basename "$location").packaged" "$(basename "$location")")
+                && mv template.yaml.packaged template.yaml)
+              # sam package uploads the Lambda code to S3 and rewrites CodeUri to the S3 URI.
+              # Write provenance metadata to each uploaded S3 object now, mirroring what
+              # devplatform-upload-action does for top-level resources after its sam package.
+              for resource in $(yq '.Resources[] | select(.Type=="AWS::Serverless::Function" or .Type=="AWS::Serverless::LayerVersion") | key' "$built_template"); do
+                uri=$(yq ".Resources.${resource}.Properties | .CodeUri // .ContentUri" "${stack}/template.yaml")
+                [[ -z "$uri" || "$uri" == "null" ]] && continue
+                echo "Writing provenance metadata for $resource: $uri"
+                aws s3 cp "$uri" "$uri" --metadata "$metadata"
+              done
             fi
           done
 
