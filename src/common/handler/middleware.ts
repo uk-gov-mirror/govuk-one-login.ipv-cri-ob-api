@@ -15,6 +15,8 @@ export { injectLambdaContext } from '@govuk-one-login/cri-logger'
 export { logMetrics } from '@govuk-one-login/cri-metrics'
 export { default as httpHeaderNormalizer } from '@middy/http-header-normalizer'
 
+// This is best used on API Gateway interfaced lambdas, not async event rule invoked lambdas
+// TODO this need changed, this will leak internal error messages to the user
 export const errorHandler = (): MiddlewareObj<APIGatewayProxyEvent, APIGatewayProxyResult> => ({
   onError: (request) => {
     request.response = formatErrorResponse(request.error)

@@ -77,14 +77,23 @@ describe('template.yaml mappings', () => {
     expect(envConfig).toHaveProperty(env)
   })
 
-  it.each(environments)('ProvisionedConcurrency has entry for %s', (env) => {
-    const pc = mappings?.['ProvisionedConcurrency'] as Record<string, Record<string, number>>
-    expect(pc?.['Environment']).toHaveProperty(env)
-  })
+  it.each(environments)(
+    'EnvironmentConfiguration has provisionedConcurrentExecutions for %s',
+    (env) => {
+      const envConfig = mappings?.['EnvironmentConfiguration'] as Record<
+        string,
+        Record<string, unknown>
+      >
+      expect(envConfig?.[env]).toHaveProperty('provisionedConcurrentExecutions')
+    }
+  )
 
-  it.each(environments)('MemorySizeMapping has entry for %s', (env) => {
-    const mem = mappings?.['MemorySizeMapping'] as Record<string, Record<string, number>>
-    expect(mem?.['Environment']).toHaveProperty(env)
+  it.each(environments)('EnvironmentConfiguration has memorySize for %s', (env) => {
+    const envConfig = mappings?.['EnvironmentConfiguration'] as Record<
+      string,
+      Record<string, unknown>
+    >
+    expect(envConfig?.[env]).toHaveProperty('memorySize')
   })
 })
 

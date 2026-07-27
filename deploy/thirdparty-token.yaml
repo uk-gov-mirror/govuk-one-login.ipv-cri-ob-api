@@ -1,0 +1,309 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Description: Reusable Third-party async token infrastructure
+Metadata:
+  cfn-lint:
+    config:
+      ignore_checks:
+        - W3005 # dependency already enforced by a 'Ref' (log group depends-on is required in this case)
+
+Parameters:
+  ParentStackName:
+    Type: String
+  ThirdPartyTokenPluginName:
+    Type: String
+    Default: "ob_token_plugin"
+  ThirdPartyTokenResourcePrefix:
+    Type: String
+    Default: "none"
+  ThirdPartyTokenPluginLayerArn:
+    Type: String
+    Description: "ARN of the Lambda Layer containing the token plugin module"
+  ThirdPartyTokenSchedulerEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues: [ "true", "false" ]
+    Description: "Enable the 1-minute EventBridge cron. Defaults to false for dev stacks that consume tokens from the pipeline stack."
+  Environment:
+    Description: The environment type
+    Type: "String"
+    AllowedValues:
+      - "dev"
+      - "build"
+      - "staging"
+      - "integration"
+      - "production"
+    ConstraintDescription: must be dev, build, staging, integration or production
+  VpcStackName:
+    Description: >
+      The name of the stack that defines the VPC in which this container will
+      run.
+    Type: String
+    Default: "cri-vpc"
+  PermissionsBoundary:
+    Description: The ARN of the permissions boundary to apply when creating IAM roles
+    Type: String
+  CodeSigningConfigArn:
+    Type: String
+  CriIdentifier:
+    Type: String
+  ProvisionedConcurrentExecutions:
+    Type: Number
+  MemorySize:
+    Type: Number
+  LogGroupRetentionInDays:
+    Type: Number
+  DynatraceSecretArn:
+    Type: String
+  DynatraceSecretLayer:
+    Type: String
+  LambdaDeploymentPreference:
+    Type: String
+  CodeDeployServiceRoleArn:
+    Type: String
+
+
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Tracing: Active
+    MemorySize: !Ref MemorySize
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        AWS_LAMBDA_EXEC_WRAPPER: /opt/dynatrace
+        DT_CONNECTION_AUTH_TOKEN: !Sub
+          - '{{resolve:secretsmanager:${SecretArn}:SecretString:DT_CONNECTION_AUTH_TOKEN}}'  # pragma: allowlist secret
+          - SecretArn: !Ref DynatraceSecretArn
+        DT_CONNECTION_BASE_URL: !Sub
+          - '{{resolve:secretsmanager:${SecretArn}:SecretString:DT_CONNECTION_BASE_URL}}'  # pragma: allowlist secret
+          - SecretArn: !Ref DynatraceSecretArn
+        DT_CLUSTER: !Sub
+          - '{{resolve:secretsmanager:${SecretArn}:SecretString:DT_CLUSTER_ID}}'  # pragma: allowlist secret
+          - SecretArn: !Ref DynatraceSecretArn
+        DT_LOG_COLLECTION_AUTH_TOKEN: !Sub
+          - '{{resolve:secretsmanager:${SecretArn}:SecretString:DT_LOG_COLLECTION_AUTH_TOKEN}}'  # pragma: allowlist secret
+          - SecretArn: !Ref DynatraceSecretArn
+        DT_TENANT: !Sub
+          - '{{resolve:secretsmanager:${SecretArn}:SecretString:DT_TENANT}}'  # pragma: allowlist secret
+          - SecretArn: !Ref DynatraceSecretArn
+        POWERTOOLS_LOG_LEVEL: INFO
+        POWERTOOLS_METRICS_NAMESPACE: !Ref CriIdentifier
+    ProvisionedConcurrencyConfig:
+      !If
+      - AddProvisionedConcurrency
+      - ProvisionedConcurrentExecutions: !Ref ProvisionedConcurrentExecutions
+      - !Ref AWS::NoValue
+    Layers:
+      - !Ref DynatraceSecretLayer
+
+Conditions:
+  UsePermissionsBoundary: !Not
+    - !Equals [ !Ref PermissionsBoundary, "none" ]
+  UseCodeSigning: !Not
+    - !Equals [ !Ref CodeSigningConfigArn, "none" ]
+  UseCanaryDeploymentAlarms: !Not
+    - !Equals [ !Ref LambdaDeploymentPreference, AllAtOnce ]
+  AddProvisionedConcurrency: !Not
+    - !Equals
+      - !Ref ProvisionedConcurrentExecutions
+      - "0"
+  UsingThirdPartyTokenResourcePrefix: !Not
+    - !Equals [ !Ref ThirdPartyTokenResourcePrefix, "none" ]
+  ThirdPartyTokenSchedulerEnabled: !Equals [ !Ref ThirdPartyTokenSchedulerEnabled, "true" ]
+
+#Mappings:
+
+Resources:
+
+  ####################################################################
+  #                                                                  #
+  # Third-Party Async Token Function.                                #
+  #                                                                  #
+  ####################################################################
+
+  ThirdPartyAsyncTokenFunction:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - ThirdPartyAsyncTokenFunctionLogGroup
+    Properties:
+      FunctionName: !Sub "${ParentStackName}-thirdparty-async-token"
+      CodeSigningConfigArn: !If
+        - UseCodeSigning
+        - !Ref CodeSigningConfigArn
+        - !Ref AWS::NoValue
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+      Timeout: 30 # Keep well under 1-minute cron interval to prevent overlapping executions, but enough to handle workers delay/timeouts
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-AWSServicesEndpointSecurityGroupId"
+        SubnetIds:
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-ProtectedSubnetIdA"
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-ProtectedSubnetIdB"
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-ProtectedSubnetIdC"
+      Handler: thirdparty-async-token-lambda.handler
+      CodeUri: ../
+      Layers:
+        - !Ref ThirdPartyTokenPluginLayerArn
+      # Ensures log group resource is always created first
+      # This lambda bootstraps during init to ensure code is tested during deployment
+      # The log-group resource creation will then fail as a loggroup already exists with the same name
+      LoggingConfig:
+        LogGroup: !Ref ThirdPartyAsyncTokenFunctionLogGroup
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: !Sub "${CriIdentifier}-thirdparty-async-token"
+          THIRDPARTY_TOKEN_PLUGIN_NAME: !Ref ThirdPartyTokenPluginName
+          THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT: !Sub
+            - "/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}"
+            - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref ParentStackName ]
+          THIRDPARTY_TOKEN_DYNAMO_TABLE_NAME:
+            !Sub
+            - "${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-thirdparty-token-table"
+            - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref ParentStackName ]
+          # Forces AutoPublishAlias to publish a new function version when the layer changes.
+          # Without this, layer updates may not trigger.
+          THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN: !Ref ThirdPartyTokenPluginLayerArn
+      AutoPublishAlias: live
+      AutoPublishAliasAllProperties: true
+      DeploymentPreference:
+        Enabled: true
+        Type: !Ref LambdaDeploymentPreference
+        Role: !Ref CodeDeployServiceRoleArn
+        Alarms: !If
+          - UseCanaryDeploymentAlarms
+          - [ !Ref CanaryThirdPartyAsyncTokenFunctionErrorsAlarm ]
+          - [ !Ref AWS::NoValue ]
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - AWSXrayWriteOnlyAccess
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParametersByPath
+              Resource:
+                - !Sub
+                  - "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}/${ThirdPartyTokenPluginName}/*"
+                  - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref ParentStackName ]
+            - Effect: Allow
+              Action:
+                - "dynamodb:GetItem"
+                - "dynamodb:PutItem"
+                - "dynamodb:DeleteItem"
+              Resource:
+                !Sub
+                - "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-thirdparty-token-table"
+                - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref ParentStackName ]
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Sourcemap: true
+        Target: node24
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - src/thirdparty-async-token-lambda/handler/thirdparty-async-token-lambda.ts
+        External:
+          - "@aws-sdk/*"
+        Banner:
+          - js=import { createRequire } from 'module'; const require = createRequire(import.meta.url);
+
+  ThirdPartyAsyncTokenFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ParentStackName}-thirdparty-async-token"
+      RetentionInDays: !Ref LogGroupRetentionInDays
+
+  ThirdPartyAsyncTokenFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Condition: ThirdPartyTokenSchedulerEnabled
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ThirdPartyAsyncTokenFunction.Alias
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ThirdPartyAsyncTokenFunctionEventRule.Arn
+
+  ThirdPartyAsyncTokenFunctionEventRule:
+    Type: AWS::Events::Rule
+    Condition: ThirdPartyTokenSchedulerEnabled
+    Properties:
+      Description: "Triggers a third-party token scheduler event every minute"
+      ScheduleExpression: "cron(0/1 * * * ? *)"
+      # Disables ThirdPartyAsync outside of pipeline
+      # non-pipeline stacks in dev will consume the token from the main stack
+      State: ENABLED
+      Targets:
+        - Arn: !Ref ThirdPartyAsyncTokenFunction.Alias
+          Id: scheduled-third-party-async-token-event
+
+  ####################################################################
+  #                                                                  #
+  # Database Tables                                                  #
+  #                                                                  #
+  ####################################################################
+
+  ThirdPartyTokenTable:
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      TableName: !Sub "${ParentStackName}-thirdparty-token-table"
+      BillingMode: "PAY_PER_REQUEST"
+      AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "id"
+          KeyType: "HASH"
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+
+  ###################################################################
+  #                                                                 #
+  # Canary Alarms                                                   #
+  #                                                                 #
+  ###################################################################
+
+  # Very sensitive generic alarm as the lambda must never return errors
+  CanaryThirdPartyAsyncTokenFunctionErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: UseCanaryDeploymentAlarms
+    Properties:
+      AlarmName: !Sub "${ParentStackName}-ThirdPartyAsyncTokenFunction-Errors"
+      AlarmDescription: !Sub |
+        ${CriIdentifier}-${Environment}-${ParentStackName} ThirdPartyAsyncTokenFunction lambda has returned errors
+      ActionsEnabled: true
+      AlarmActions:
+        - !ImportValue build-notifications-CriticalAlertsTopicArn
+      OKActions:
+        - !ImportValue build-notifications-CriticalAlertsTopicArn
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ThirdPartyAsyncTokenFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  ThirdPartyTokenTableName:
+    Description: "For use in lambdas that need to fetch a token via the retrieval service"
+    Value: !Ref ThirdPartyTokenTable

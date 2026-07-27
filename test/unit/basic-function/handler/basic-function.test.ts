@@ -1,19 +1,108 @@
-import type { APIGatewayProxyEvent, Context } from 'aws-lambda'
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
 
-import { BasicFunction } from '@src/basic-function/handler/basic-function'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('BasicFunction', () => {
-  it('returns 200 with message and path', async () => {
-    const lambda = new BasicFunction()
-    const result = await lambda.handler(
-      { path: '/basic-function' } as APIGatewayProxyEvent,
-      {} as Context
-    )
+const { mockRetrieveToken } = vi.hoisted(() => ({
+  mockRetrieveToken: vi.fn()
+}))
+
+vi.mock('@common/handler/middleware', () => ({
+  errorHandler: () => ({ after: vi.fn(), before: vi.fn(), onError: vi.fn() }),
+  httpHeaderNormalizer: () => ({ after: vi.fn(), before: vi.fn() }),
+  injectLambdaContext: () => ({ after: vi.fn(), before: vi.fn() }),
+  latencyRecorder: () => ({ after: vi.fn(), before: vi.fn() }),
+  logMetrics: () => ({ after: vi.fn(), before: vi.fn() }),
+  resultRecorder: () => ({ after: vi.fn(), before: vi.fn() })
+}))
+
+vi.mock('@common/util/env', () => ({
+  requireEnv: () => 'stub-value'
+}))
+
+vi.mock('@common/util/client-config-profile-resolver', () => ({
+  getConfigProfileNameFromClientId: () => 'STUB'
+}))
+
+vi.mock('@govuk-one-login/cri-logger', () => ({
+  logger: { error: vi.fn(), info: vi.fn() }
+}))
+
+vi.mock('@govuk-one-login/cri-metrics', () => ({
+  logMetrics: () => ({ after: vi.fn(), before: vi.fn() }),
+  metrics: {}
+}))
+
+vi.mock('@common/client/dynamodb-client', () => ({
+  dynamoDBDocumentClient: {}
+}))
+
+vi.mock('@src/thirdparty-async-token-common/client/token-repository', () => ({
+  thirdPartyTokenRepository: {}
+}))
+
+vi.mock('@src/thirdparty-async-token-plugin-api/plugin-api/token-plugin-config', () => ({
+  thirdPartyTokenPluginConfig: {
+    enabledProfiles: ['STUB'],
+    expirationWindowSeconds: 300,
+    itemTtlSeconds: 3300,
+    maxLifetimeSeconds: 3600,
+    pluginName: 'ob_token_plugin',
+    tokenItemSuffix: '_token_ob_token_plugin'
+  }
+}))
+
+vi.mock('@src/thirdparty-async-token-consumer/service/token-retrieval-service', () => ({
+  createThirdPartyTokenRetrievalService: () => ({
+    retrieveTokenForConfigProfileName: mockRetrieveToken
+  })
+}))
+
+vi.mock('@middy/core', () => ({
+  default: () => ({
+    handler: vi.fn().mockImplementation((fn: unknown) => fn),
+    use: vi.fn().mockReturnThis()
+  })
+}))
+
+import { handler } from '@src/basic-function/handler/basic-function'
+
+const buildEvent = (overrides?: Partial<APIGatewayProxyEvent>): APIGatewayProxyEvent =>
+  ({ path: '/basic-function', ...overrides }) as APIGatewayProxyEvent
+
+const invokeHandler = (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> =>
+  (handler as unknown as (e: APIGatewayProxyEvent) => Promise<APIGatewayProxyResult>)(event)
+
+describe('basic-function handler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockRetrieveToken.mockResolvedValue('mock-token')
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns 200 with message and path when token is retrieved', async () => {
+    const result = await invokeHandler(buildEvent())
 
     expect(result.statusCode).toBe(200)
-    const body = JSON.parse(result.body) as { message: string; path: string }
-    expect(body.message).toBe('Hello from the basic function')
-    expect(body.path).toBe('/basic-function')
+    expect(JSON.parse(result.body)).toEqual({
+      message: 'Successfully executed',
+      path: '/basic-function'
+    })
+  })
+
+  it('returns 500 with oauth_error when token retrieval returns undefined', async () => {
+    mockRetrieveToken.mockResolvedValue(undefined)
+
+    const result = await invokeHandler(buildEvent())
+
+    expect(result.statusCode).toBe(500)
+    expect(JSON.parse(result.body)).toEqual({
+      oauth_error: {
+        error: 'server_error',
+        error_description: 'Unexpected server error'
+      }
+    })
   })
 })

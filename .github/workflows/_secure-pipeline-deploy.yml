@@ -66,6 +66,38 @@ jobs:
           aws-role-arn: ${{ secrets.role_arn }}
           pull-repository: true
 
+      # Workaround: devplatform-upload-action only signs Functions/Layers found
+      # in the top-level template. Functions inside nested AWS::Serverless::Application
+      # stacks are not discovered. This step cd's into each nested stack directory
+      # and runs sam package directly, signing the nested functions and rewriting
+      # their CodeUri to signed S3 URIs. The upload action's subsequent sam package
+      # then sees the nested resources are already packaged and preserves them.
+      - name: Sign nested stack functions
+        working-directory: .aws-sam/build
+        env:
+          ARTIFACT_BUCKET: ${{ secrets.artifact_bucket }}
+          SIGNING_PROFILE: ${{ secrets.signing_profile }}
+        run: |
+          [[ -z "$SIGNING_PROFILE" ]] && echo "No signing profile set, skipping" && exit 0
+
+          for stack in $(yq '.Resources[] | select(.Type=="AWS::Serverless::Application") | key' template.yaml); do
+            location=$(yq ".Resources.${stack}.Properties.Location" template.yaml)
+            [[ -f "$location" ]] || continue
+            signing_args=""
+            for resource in $(yq '.Resources[] | select(.Type=="AWS::Serverless::Function" or .Type=="AWS::Serverless::LayerVersion") | key' "$location"); do
+              signing_args+="${resource}=${SIGNING_PROFILE} "
+            done
+            if [[ -n "$signing_args" ]]; then
+              echo "Signing nested resources in $stack: $signing_args"
+              (cd "$(dirname "$location")" && sam package \
+                --template-file "$(basename "$location")" \
+                --output-template-file "$(basename "$location").packaged" \
+                --s3-bucket "$ARTIFACT_BUCKET" \
+                --signing-profiles $signing_args \
+                && mv "$(basename "$location").packaged" "$(basename "$location")")
+            fi
+          done
+
       - name: SAM package and upload to S3
         uses: govuk-one-login/devplatform-upload-action@245bad4dc21702a5e665f1ca615108f6e70546d2 # v4.0.0
         with:
