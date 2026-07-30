@@ -78,7 +78,6 @@ const buildPluginConfig = (
   itemTtlSeconds: 3300,
   maxLifetimeSeconds: 3600,
   pluginName: 'ob-token-plugin',
-  tokenItemSuffix: '-token-ob-token-plugin',
   ...overrides
 })
 

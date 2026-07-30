@@ -40,7 +40,6 @@ describe('createThirdPartyTokenPluginConfig', () => {
       await import('@src/thirdparty-async-token/plugin-api/token-plugin-config')
 
     expect(thirdPartyTokenPluginConfig.pluginName).toBe('ob-token-plugin')
-    expect(thirdPartyTokenPluginConfig.tokenItemSuffix).toBe('-token-ob-token-plugin')
     expect(thirdPartyTokenPluginConfig.maxLifetimeSeconds).toBe(3600)
     expect(thirdPartyTokenPluginConfig.expirationWindowSeconds).toBe(300)
     expect(thirdPartyTokenPluginConfig.itemTtlSeconds).toBe(3300)

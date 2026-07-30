@@ -22,7 +22,6 @@ export interface ThirdPartyTokenPluginConfig {
   itemTtlSeconds: number
   maxLifetimeSeconds: number
   pluginName: string
-  tokenItemSuffix: string
 }
 
 export const createThirdPartyTokenPluginConfig = async (): Promise<ThirdPartyTokenPluginConfig> => {
@@ -69,7 +68,6 @@ export const createThirdPartyTokenPluginConfig = async (): Promise<ThirdPartyTok
     itemTtlSeconds,
     maxLifetimeSeconds,
     pluginName,
-    tokenItemSuffix: `-token-${pluginName}`
   }
 }
 
