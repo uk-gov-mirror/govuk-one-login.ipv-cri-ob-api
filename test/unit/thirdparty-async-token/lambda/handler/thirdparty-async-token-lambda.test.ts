@@ -20,7 +20,7 @@ const {
 }))
 
 vi.mock('@lib-common/client/ssm-config-provider', () => ({
-  createSsmConfigProvider: () => ({ getConfig: mockGetConfig })
+  ssmConfigProvider: { getConfig: mockGetConfig }
 }))
 
 vi.mock('@common/handler/middleware', () => ({

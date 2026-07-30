@@ -4,7 +4,7 @@ import { getParameters } from '@aws-lambda-powertools/parameters/ssm'
 
 const CACHE_MAX_AGE_SECONDS = 300
 
-export const createSsmConfigProvider = (): ConfigProvider => ({
+export const ssmConfigProvider: ConfigProvider = {
   getConfig: async (parameterPath) => {
     const params = await getParameters(parameterPath, {
       decrypt: true,
@@ -16,4 +16,4 @@ export const createSsmConfigProvider = (): ConfigProvider => ({
     }
     return params
   }
-})
+}

@@ -4,7 +4,7 @@ import type { ScheduledEvent } from 'aws-lambda'
 
 import { injectLambdaContext, logger } from '@govuk-one-login/cri-logger'
 import { logMetrics, metrics } from '@govuk-one-login/cri-metrics'
-import { createSsmConfigProvider } from '@lib-common/client/ssm-config-provider'
+import { ssmConfigProvider } from '@lib-common/client/ssm-config-provider'
 import { requireEnv } from '@lib-common/util/env'
 import {
   type TokenUpdateResult,
@@ -15,7 +15,7 @@ import { thirdPartyTokenPluginConfig } from '@src/thirdparty-async-token/plugin-
 
 import middy from '@middy/core'
 
-const configProvider: ConfigProvider = createSsmConfigProvider()
+const configProvider: ConfigProvider = ssmConfigProvider
 const plugin = await loadPlugin()
 const configRoot = requireEnv('THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT')
 logger.appendKeys({ functionName: process.env['AWS_LAMBDA_FUNCTION_NAME'] ?? 'FunctionNameNotSet' })

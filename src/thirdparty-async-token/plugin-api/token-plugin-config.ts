@@ -1,11 +1,11 @@
 import type { ConfigProvider } from '@lib-common/client/config-provider'
 
 import { logger } from '@govuk-one-login/cri-logger'
-import { createSsmConfigProvider } from '@lib-common/client/ssm-config-provider'
+import { ssmConfigProvider } from '@lib-common/client/ssm-config-provider'
 import { requireEnv } from '@lib-common/util/env'
 import { z } from 'zod'
 
-const configProvider: ConfigProvider = createSsmConfigProvider()
+const configProvider: ConfigProvider = ssmConfigProvider
 
 const tokenPluginSSMSchema = z.object({
   enabledProfiles: z

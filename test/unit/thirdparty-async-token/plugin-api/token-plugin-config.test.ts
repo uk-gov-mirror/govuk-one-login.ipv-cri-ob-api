@@ -6,7 +6,7 @@ const { mockGetConfig, mockInfo } = vi.hoisted(() => ({
 }))
 
 vi.mock('@lib-common/client/ssm-config-provider', () => ({
-  createSsmConfigProvider: () => ({ getConfig: mockGetConfig })
+  ssmConfigProvider: { getConfig: mockGetConfig }
 }))
 
 vi.mock('@lib-common/util/env', () => ({
