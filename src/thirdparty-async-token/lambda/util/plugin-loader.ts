@@ -1,5 +1,6 @@
 import type { ThirdPartyTokenPlugin } from '@src/thirdparty-async-token/plugin-api/token-plugin'
 
+import { logger } from '@govuk-one-login/cri-logger'
 import { requireEnv } from '@lib-common/util/env'
 
 interface PluginModule {
@@ -16,6 +17,12 @@ export const loadPlugin = async (): Promise<ThirdPartyTokenPlugin> => {
 
   const mod = (await import(modulePath)) as PluginModule
   cached = mod.createPlugin()
+
+  if (cached.name !== pluginName) {
+    throw new Error(`Plugin name mismatch: expected "${pluginName}", got "${cached.name}"`)
+  }
+
+  logger.info(`Loaded ${cached.name} plugin`);
 
   return cached
 }
