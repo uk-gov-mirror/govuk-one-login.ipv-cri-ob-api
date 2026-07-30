@@ -30,15 +30,6 @@ describe('createObThirdPartyTokenPlugin', () => {
       expect(result.body).toContain('scope=accounts')
     })
 
-    it('throws when required config key is missing', () => {
-      expect(() =>
-        plugin.buildTokenRequest({
-          config: { 'client-id': 'myId' },
-          tokenPrefix: 'STUB'
-        })
-      ).toThrow()
-    })
-
     it('throws for each missing required key', () => {
       const requiredKeys = ['client-id', 'client-secret', 'endpoint-url', 'grant-type', 'scope']
       for (const missingKey of requiredKeys) {
@@ -55,25 +46,28 @@ describe('createObThirdPartyTokenPlugin', () => {
   })
 
   describe('mapResponse', () => {
-    it('extracts access_token from valid response', () => {
-      const body = JSON.stringify({
-        access_token: 'my-jwt-token',
-        expires_in: 3600,
-        scope: 'accounts',
-        token_type: 'bearer'
-      })
+    const maxLifetimeSeconds = 3600
+    const expirationWindowSeconds = 300
 
-      expect(plugin.mapResponse(body)).toEqual({ tokenValue: 'my-jwt-token' })
+    const validBody = (expires_in = 3600) =>
+      JSON.stringify({ access_token: 'my-jwt-token', expires_in, scope: 'accounts', token_type: 'bearer' })
+
+    it('extracts access_token from valid response', () => {
+      expect(plugin.mapResponse(validBody(), maxLifetimeSeconds, expirationWindowSeconds)).toEqual({
+        tokenValue: 'my-jwt-token'
+      })
     })
 
     it('returns undefined for invalid JSON', () => {
-      expect(plugin.mapResponse('not json')).toBeUndefined()
+      expect(plugin.mapResponse('not json', maxLifetimeSeconds, expirationWindowSeconds)).toBeUndefined()
     })
 
     it('returns undefined when access_token is missing', () => {
       expect(
         plugin.mapResponse(
-          JSON.stringify({ expires_in: 3600, scope: 'accounts', token_type: 'bearer' })
+          JSON.stringify({ expires_in: 3600, scope: 'accounts', token_type: 'bearer' }),
+          maxLifetimeSeconds,
+          expirationWindowSeconds
         )
       ).toBeUndefined()
     })
@@ -81,7 +75,9 @@ describe('createObThirdPartyTokenPlugin', () => {
     it('returns undefined when token_type is missing', () => {
       expect(
         plugin.mapResponse(
-          JSON.stringify({ access_token: 'tok', expires_in: 3600, scope: 'accounts' })
+          JSON.stringify({ access_token: 'tok', expires_in: 3600, scope: 'accounts' }),
+          maxLifetimeSeconds,
+          expirationWindowSeconds
         )
       ).toBeUndefined()
     })
@@ -89,22 +85,33 @@ describe('createObThirdPartyTokenPlugin', () => {
     it('returns undefined when scope is missing', () => {
       expect(
         plugin.mapResponse(
-          JSON.stringify({ access_token: 'tok', expires_in: 3600, token_type: 'bearer' })
+          JSON.stringify({ access_token: 'tok', expires_in: 3600, token_type: 'bearer' }),
+          maxLifetimeSeconds,
+          expirationWindowSeconds
         )
       ).toBeUndefined()
     })
 
-    it('returns undefined when expires_in is zero', () => {
+    it('returns undefined when expires_in is not greater than expirationWindowSeconds', () => {
+      expect(plugin.mapResponse(validBody(0), maxLifetimeSeconds, expirationWindowSeconds)).toBeUndefined()
+    })
+
+    it('returns undefined when expires_in equals expirationWindowSeconds', () => {
       expect(
-        plugin.mapResponse(
-          JSON.stringify({
-            access_token: 'tok',
-            expires_in: 0,
-            scope: 'accounts',
-            token_type: 'bearer'
-          })
-        )
+        plugin.mapResponse(validBody(expirationWindowSeconds), maxLifetimeSeconds, expirationWindowSeconds)
       ).toBeUndefined()
+    })
+
+    it('returns undefined when expires_in is below maxLifetimeSeconds', () => {
+      expect(
+        plugin.mapResponse(validBody(maxLifetimeSeconds - 1), maxLifetimeSeconds, expirationWindowSeconds)
+      ).toBeUndefined()
+    })
+
+    it('returns token when expires_in equals maxLifetimeSeconds', () => {
+      expect(
+        plugin.mapResponse(validBody(maxLifetimeSeconds), maxLifetimeSeconds, expirationWindowSeconds)
+      ).toEqual({ tokenValue: 'my-jwt-token' })
     })
   })
 

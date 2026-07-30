@@ -12,7 +12,7 @@ const PLUGIN_NAME = 'ob-token-plugin'
 
 export const ecoSpendTokenResponseSchema = z.object({
   access_token: z.string(),
-  expires_in: z.number().min(1),
+  expires_in: z.number(),
   scope: z.string(),
   token_type: z.string()
 })
@@ -70,9 +70,16 @@ const createObThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
       return false
     }
   },
-  mapResponse: (responseBody) => {
+  mapResponse: (responseBody, maxLifetimeSeconds: number, expirationWindowSeconds: number) => {
     try {
-      const parsed = ecoSpendTokenResponseSchema.parse(JSON.parse(responseBody))
+      const parsed = ecoSpendTokenResponseSchema
+        .refine((data) => data.expires_in >= maxLifetimeSeconds, {
+          message: `expires_in must be greater than or equal to maxLifetimeSeconds: ${maxLifetimeSeconds}`
+        })
+        .refine((data) => data.expires_in > expirationWindowSeconds, {
+          message: `expires_in must be greater than expirationWindowSeconds: ${expirationWindowSeconds}`
+        })
+        .parse(JSON.parse(responseBody))
 
       return { tokenValue: parsed.access_token }
     } catch (error) {

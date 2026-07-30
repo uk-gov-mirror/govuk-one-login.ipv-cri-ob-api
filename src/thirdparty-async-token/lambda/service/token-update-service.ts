@@ -63,7 +63,7 @@ const createThirdPartyTokenUpdateService = (
       .join(', ')
     logger.info(`New ${tokenName} token requested - reason: ${reasons}`)
 
-    const result = await performNewTokenRequest(plugin, pluginInput)
+    const result = await performNewTokenRequest(plugin, pluginInput, pluginConfig)
 
     if (result.tokenValue) {
       logger.info(`Saving Token ${tokenName} to ThirdPartyTokenRepository`)
@@ -90,7 +90,8 @@ const createThirdPartyTokenUpdateService = (
 
 const performNewTokenRequest = async (
   tokenPlugin: ThirdPartyTokenPlugin,
-  pluginInput: PluginInput
+  pluginInput: PluginInput,
+  pluginConfig: ThirdPartyTokenPluginConfig
 ): Promise<NewTokenRequestResult> => {
   // Try/Catch used to guarantee no throw
   try {
@@ -126,7 +127,11 @@ const performNewTokenRequest = async (
     }
 
     // Mapper failure TODO METRIC - API RES Invalid
-    const tokenResponse = tokenPlugin.mapResponse(responseBody)
+    const tokenResponse = tokenPlugin.mapResponse(
+      responseBody,
+      pluginConfig.maxLifetimeSeconds,
+      pluginConfig.expirationWindowSeconds
+    )
     if (!tokenResponse) {
       return { message: 'Token response mapping failed', tokenValue: undefined }
     }

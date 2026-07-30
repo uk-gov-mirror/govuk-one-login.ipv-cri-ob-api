@@ -9,7 +9,11 @@ export interface ThirdPartyTokenPlugin {
   alertStatusCodes: number[]
   buildTokenRequest: (input: PluginInput) => ThirdPartyTokenRequestConfig
   isTokenValid: (tokenResponse: ThirdPartyTokenResponse) => boolean
-  mapResponse: (responseBody: string) => ThirdPartyTokenResponse | undefined
+  mapResponse: (
+    responseBody: string,
+    maxLifetimeSeconds: number,
+    expirationWindowSeconds: number
+  ) => ThirdPartyTokenResponse | undefined
   name: string
   parseConfigProfile: (config: Record<string, string>) => Record<string, string>
 }
