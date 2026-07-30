@@ -37,11 +37,15 @@ describe('loadPlugin', () => {
 
   it('throws when plugin name does not match THIRDPARTY_TOKEN_PLUGIN_NAME', async () => {
     vi.stubEnv('THIRDPARTY_TOKEN_PLUGIN_NAME', 'test-plugin')
-    vi.doMock('/opt/nodejs/test-plugin.mjs', () => ({ createPlugin: () => ({ name: 'wrong-plugin' }) }))
+    vi.doMock('/opt/nodejs/test-plugin.mjs', () => ({
+      createPlugin: () => ({ name: 'wrong-plugin' })
+    }))
 
     const { loadPlugin } = await import('@src/thirdparty-async-token/lambda/util/plugin-loader')
 
-    await expect(loadPlugin()).rejects.toThrow('Plugin name mismatch: expected "test-plugin", got "wrong-plugin"')
+    await expect(loadPlugin()).rejects.toThrow(
+      'Plugin name mismatch: expected "test-plugin", got "wrong-plugin"'
+    )
   })
 
   it('throws when createPlugin throws', async () => {

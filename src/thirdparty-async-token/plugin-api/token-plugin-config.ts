@@ -67,7 +67,7 @@ export const createThirdPartyTokenPluginConfig = async (): Promise<ThirdPartyTok
     expirationWindowSeconds,
     itemTtlSeconds,
     maxLifetimeSeconds,
-    pluginName,
+    pluginName
   }
 }
 

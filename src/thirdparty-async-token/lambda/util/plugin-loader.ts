@@ -22,7 +22,7 @@ export const loadPlugin = async (): Promise<ThirdPartyTokenPlugin> => {
     throw new Error(`Plugin name mismatch: expected "${pluginName}", got "${cached.name}"`)
   }
 
-  logger.info(`Loaded ${cached.name} plugin`);
+  logger.info(`Loaded ${cached.name} plugin`)
 
   return cached
 }
