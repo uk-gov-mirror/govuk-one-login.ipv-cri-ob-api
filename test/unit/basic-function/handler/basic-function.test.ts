@@ -15,40 +15,12 @@ vi.mock('@common/handler/middleware', () => ({
   resultRecorder: () => ({ after: vi.fn(), before: vi.fn() })
 }))
 
-vi.mock('@common/util/env', () => ({
-  requireEnv: () => 'stub-value'
-}))
-
-vi.mock('@common/util/client-config-profile-resolver', () => ({
-  getConfigProfileNameFromClientId: () => 'STUB'
-}))
-
 vi.mock('@govuk-one-login/cri-logger', () => ({
   logger: { error: vi.fn(), info: vi.fn() }
 }))
 
 vi.mock('@govuk-one-login/cri-metrics', () => ({
-  logMetrics: () => ({ after: vi.fn(), before: vi.fn() }),
   metrics: {}
-}))
-
-vi.mock('@lib-common/client/dynamodb-client', () => ({
-  dynamoDBDocumentClient: {}
-}))
-
-vi.mock('@src/thirdparty-async-token/common/client/token-repository', () => ({
-  thirdPartyTokenRepository: {}
-}))
-
-vi.mock('@src/thirdparty-async-token/plugin-api/token-plugin-config', () => ({
-  thirdPartyTokenPluginConfig: {
-    enabledProfiles: ['STUB'],
-    expirationWindowSeconds: 300,
-    itemTtlSeconds: 3300,
-    maxLifetimeSeconds: 3600,
-    pluginName: 'ob-token-plugin',
-    tokenItemSuffix: '-token-ob-token-plugin'
-  }
 }))
 
 vi.mock('@src/thirdparty-async-token/consumer/token-retrieval', () => ({

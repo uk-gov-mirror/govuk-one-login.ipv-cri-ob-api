@@ -50,8 +50,7 @@ vi.mock('@src/thirdparty-async-token/plugin-api/token-plugin-config', () => ({
     expirationWindowSeconds: 300,
     itemTtlSeconds: 3300,
     maxLifetimeSeconds: 3600,
-    pluginName: 'ob-token-plugin',
-    tokenItemSuffix: '_suffix'
+    pluginName: 'ob-token-plugin'
   }
 }))
 

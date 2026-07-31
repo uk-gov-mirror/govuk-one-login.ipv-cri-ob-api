@@ -23,10 +23,6 @@ vi.mock('@lib-common/client/ssm-config-provider', () => ({
   ssmConfigProvider: { getConfig: mockGetConfig }
 }))
 
-vi.mock('@common/handler/middleware', () => ({
-  injectLambdaContext: () => ({ after: vi.fn(), before: vi.fn() })
-}))
-
 vi.mock('@lib-common/util/env', () => ({
   requireEnv: () => '/ssm/root'
 }))
