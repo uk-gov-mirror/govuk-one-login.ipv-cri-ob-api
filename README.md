@@ -133,12 +133,12 @@ Explains how OAuth `clientId` values are mapped to config profiles (`STUB`, `UAT
 ### Thirdparty Async Token
 
 #### Operation & Design
-[`docs/lambdas/async-token/thirdparty-async-token-design.md`](docs/lambdas/async-token/thirdparty-async-token-design.md)
+[`docs/lambdas/async-token/async-token-design.md`](docs/lambdas/async-token/async-token-design.md)
 
 Covers the scheduled token refresh mechanism: Lambda lifecycle (cold-start bootstrap vs. 1-minute scheduled runs), token update logic, DynamoDB storage schema, TTL/expiry timing, environment variables, error handling matrix, and module structure.
 
 #### Plugin Architecture
-[`docs/lambdas/async-token/thirdparty-token-plugin-architecture.md`](docs/lambdas/async-token/thirdparty-token-plugin-architecture.md)
+[`docs/lambdas/async-token/token-plugin-architecture.md`](docs/lambdas/async-token/token-plugin-architecture.md)
 
 Describes the Lambda Layer plugin injection pattern used to decouple the `thirdparty-token` nested stack from any specific plugin implementation. Covers the `createPlugin()` contract, plugin filename convention, the `plugin-loader.ts` dynamic import mechanism, layer build via Makefile, canary deployment guarantee via `THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN`, and the target architecture for SAR publication.
 

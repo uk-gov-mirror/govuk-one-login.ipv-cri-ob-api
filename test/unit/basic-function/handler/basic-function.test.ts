@@ -23,7 +23,7 @@ vi.mock('@govuk-one-login/cri-metrics', () => ({
   metrics: {}
 }))
 
-vi.mock('@src/thirdparty-async-token/consumer/token-retrieval', () => ({
+vi.mock('@src/async-token/consumer/token-retrieval', () => ({
   retrieveTokenForConfigProfileName: mockRetrieveToken
 }))
 

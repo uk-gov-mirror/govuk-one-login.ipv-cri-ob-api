@@ -133,7 +133,7 @@ Resources:
     DependsOn:
       - ThirdPartyAsyncTokenFunctionLogGroup
     Properties:
-      FunctionName: !Sub "${ParentStackName}-thirdparty-async-token"
+      FunctionName: !Sub "${ParentStackName}-async-token"
       CodeSigningConfigArn: !If
         - UseCodeSigning
         - !Ref CodeSigningConfigArn
@@ -154,7 +154,7 @@ Resources:
               !Sub "${VpcStackName}-ProtectedSubnetIdB"
           - Fn::ImportValue:
               !Sub "${VpcStackName}-ProtectedSubnetIdC"
-      Handler: thirdparty-async-token-lambda.handler
+      Handler: async-token-lambda.handler
       CodeUri: ../
       Layers:
         - !Ref ThirdPartyTokenPluginLayerArn
@@ -165,7 +165,7 @@ Resources:
         LogGroup: !Ref ThirdPartyAsyncTokenFunctionLogGroup
       Environment:
         Variables:
-          POWERTOOLS_SERVICE_NAME: !Sub "${CriIdentifier}-thirdparty-async-token"
+          POWERTOOLS_SERVICE_NAME: !Sub "${CriIdentifier}-async-token"
           THIRDPARTY_TOKEN_PLUGIN_NAME: !Ref ThirdPartyTokenPluginName
           THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT: !Sub
             - "/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}"
@@ -218,7 +218,7 @@ Resources:
         OutExtension:
           - .js=.mjs
         EntryPoints:
-          - src/thirdparty-async-token/lambda/handler/thirdparty-async-token-lambda.ts
+          - src/async-token/lambda/handler/async-token-lambda.ts
         External:
           - "@aws-sdk/*"
         Banner:
@@ -227,7 +227,7 @@ Resources:
   ThirdPartyAsyncTokenFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${ParentStackName}-thirdparty-async-token"
+      LogGroupName: !Sub "/aws/lambda/${ParentStackName}-async-token"
       RetentionInDays: !Ref LogGroupRetentionInDays
 
   ThirdPartyAsyncTokenFunctionPermission:

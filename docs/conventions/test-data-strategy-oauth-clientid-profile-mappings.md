@@ -58,7 +58,7 @@ Callers pass the profile path (e.g. `/{stack-name}/{namespace}/profiles/STUB`) t
 
 ### 1. Resolve the profile name
 
-Use `getConfigProfileNameFromClientId` from `../../src/lib-common/util/client-config-profile-resolver.ts` to map the incoming OAuth `clientId` to a profile name:
+Use `getConfigProfileNameFromClientId` from `../../src/common/util/client-config-profile-resolver.ts` to map the incoming OAuth `clientId` to a profile name:
 
 ```typescript
 import { getConfigProfileNameFromClientId } from '@common/util/client-config-profile-resolver'
@@ -68,7 +68,7 @@ const profileName = getConfigProfileNameFromClientId(clientId) // e.g. 'STUB'
 
 ### 2. Build the SSM path and fetch config
 
-The config root comes from an environment variable (typically resolving to `/{stack-name}`). Use `createSsmConfigProvider` from `src/lib-common/client/ssm-config-provider.ts`:
+The config root comes from an environment variable (typically resolving to `/{stack-name}`). Use `createSsmConfigProvider` from `../../src/common/client/ssm-config-provider.ts`:
 
 ```typescript
 import { createSsmConfigProvider } from '@lib-common/client/ssm-config-provider'
@@ -116,11 +116,11 @@ arn:aws:ssm:{region}:{account}:parameter/{stack-name}/{namespace}/*
 
 ### Reference implementations
 
-- `src/lib-common/client/config-provider.ts` — `ConfigProvider` interface
-- `src/lib-common/client/ssm-config-provider.ts` — SSM implementation
-- `src/lib-common/util/client-config-profile-resolver.ts` — clientId → profile mapping
+- `../../src/common/client/config-provider.ts` — `ConfigProvider` interface
+- `../../src/common/client/ssm-config-provider.ts` — SSM implementation
+- `../../src/common/util/client-config-profile-resolver.ts` — clientId → profile mapping
 - `src/ob-token-plugin/ob-token-plugin.ts` — zod schema and profile parsing example
-- `src/thirdparty-async-token/plugin-api/token-plugin-config.ts` — reading config (enabledProfiles) from SSM
+- `../../src/async-token/plugin-api/token-plugin-config.ts` — reading config (enabledProfiles) from SSM
 
 ### Note on AppConfig compatibility
 

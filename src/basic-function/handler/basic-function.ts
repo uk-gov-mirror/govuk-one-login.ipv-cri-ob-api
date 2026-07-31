@@ -11,7 +11,7 @@ import {
 import { getConfigProfileNameFromClientId } from '@common/util/client-config-profile-resolver'
 import { logger } from '@govuk-one-login/cri-logger'
 import { metrics } from '@govuk-one-login/cri-metrics'
-import { retrieveTokenForConfigProfileName } from '@src/thirdparty-async-token/consumer/token-retrieval'
+import { retrieveTokenForConfigProfileName } from '@src/async-token/consumer/token-retrieval'
 
 import middy from '@middy/core'
 

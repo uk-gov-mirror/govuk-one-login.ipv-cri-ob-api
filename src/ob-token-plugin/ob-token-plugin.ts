@@ -3,7 +3,7 @@ import type {
   ThirdPartyTokenPlugin,
   ThirdPartyTokenRequestConfig,
   ThirdPartyTokenResponse
-} from '@src/thirdparty-async-token/plugin-api/token-plugin'
+} from '@src/async-token/plugin-api/token-plugin'
 
 import { logger } from '@govuk-one-login/cri-logger'
 import { z } from 'zod'

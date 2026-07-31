@@ -16,7 +16,7 @@ import type {
   ThirdPartyTokenPlugin,
   ThirdPartyTokenRequestConfig,
   ThirdPartyTokenResponse
-} from '@src/thirdparty-async-token/plugin-api/token-plugin'
+} from '@src/async-token/plugin-api/token-plugin'
 
 import { z } from 'zod'
 
