@@ -19,11 +19,11 @@ const {
   mockUpdateTokenIfNeeded: vi.fn().mockResolvedValue({ message: 'ok', updated: true })
 }))
 
-vi.mock('@lib-common/client/ssm-config-provider', () => ({
+vi.mock('@common/client/ssm-config-provider', () => ({
   ssmConfigProvider: { getConfig: mockGetConfig }
 }))
 
-vi.mock('@lib-common/util/env', () => ({
+vi.mock('@common/util/env', () => ({
   requireEnv: () => '/ssm/root'
 }))
 

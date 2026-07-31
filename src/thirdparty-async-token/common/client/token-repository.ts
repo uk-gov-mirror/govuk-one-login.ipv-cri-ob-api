@@ -7,7 +7,7 @@ import {
   GetCommand,
   PutCommand
 } from '@aws-sdk/lib-dynamodb'
-import { requireEnv } from '@lib-common/util/env'
+import { requireEnv } from '@common/util/env'
 
 export interface ThirdPartyTokenRepository {
   clearToken: (id: string) => Promise<void>

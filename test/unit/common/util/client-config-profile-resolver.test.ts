@@ -1,4 +1,4 @@
-import { getConfigProfileNameFromClientId } from '@lib-common/util/client-config-profile-resolver'
+import { getConfigProfileNameFromClientId } from '@common/util/client-config-profile-resolver'
 import { describe, expect, it } from 'vitest'
 
 describe('getConfigProfileNameFromClientId', () => {

@@ -1,8 +1,8 @@
 import type { SessionItem } from '@govuk-one-login/cri-types'
 
 import { AuditEvents } from '@common/model/audit-events'
+import { requireEnv } from '@common/util/env'
 import { buildAndSendAuditEvent } from '@govuk-one-login/cri-audit'
-import { requireEnv } from '@lib-common/util/env'
 
 export interface AuditEventPublisher {
   publishJourneyEnd: (event: JourneyEndEvent) => Promise<void>

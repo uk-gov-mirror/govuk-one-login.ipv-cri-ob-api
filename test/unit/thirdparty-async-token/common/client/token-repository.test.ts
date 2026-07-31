@@ -20,7 +20,7 @@ vi.mock('@aws-sdk/lib-dynamodb', () => ({
   })
 }))
 
-vi.mock('@lib-common/util/env', () => ({
+vi.mock('@common/util/env', () => ({
   requireEnv: (name: string) => {
     if (name === 'THIRDPARTY_TOKEN_DYNAMO_TABLE_NAME') return 'test-table'
     throw new Error(`Required environment variable "${name}" is not set`)

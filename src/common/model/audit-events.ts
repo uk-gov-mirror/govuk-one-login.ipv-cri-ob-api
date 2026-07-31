@@ -1,4 +1,4 @@
-import { requireEnv } from '@lib-common/util/env'
+import { requireEnv } from '@common/util/env'
 
 const PREFIX = requireEnv('AUDIT_EVENT_NAME_PREFIX')
 

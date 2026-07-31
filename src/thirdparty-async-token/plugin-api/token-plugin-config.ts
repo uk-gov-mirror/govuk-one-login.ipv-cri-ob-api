@@ -1,8 +1,8 @@
-import type { ConfigProvider } from '@lib-common/client/config-provider'
+import type { ConfigProvider } from '@common/client/config-provider'
 
+import { ssmConfigProvider } from '@common/client/ssm-config-provider'
+import { requireEnv } from '@common/util/env'
 import { logger } from '@govuk-one-login/cri-logger'
-import { ssmConfigProvider } from '@lib-common/client/ssm-config-provider'
-import { requireEnv } from '@lib-common/util/env'
 import { z } from 'zod'
 
 const configProvider: ConfigProvider = ssmConfigProvider

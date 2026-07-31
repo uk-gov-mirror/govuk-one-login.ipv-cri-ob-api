@@ -5,7 +5,7 @@ vi.mock('@aws-lambda-powertools/parameters/ssm', () => ({
 }))
 
 import { getParameters } from '@aws-lambda-powertools/parameters/ssm'
-import { ssmConfigProvider } from '@lib-common/client/ssm-config-provider'
+import { ssmConfigProvider } from '@common/client/ssm-config-provider'
 
 const mockGetParameters = vi.mocked(getParameters)
 

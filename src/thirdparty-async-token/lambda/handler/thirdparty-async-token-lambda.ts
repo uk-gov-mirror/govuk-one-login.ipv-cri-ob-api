@@ -1,11 +1,11 @@
-import type { ConfigProvider } from '@lib-common/client/config-provider'
+import type { ConfigProvider } from '@common/client/config-provider'
 import type { PluginInput } from '@src/thirdparty-async-token/plugin-api/token-plugin'
 import type { ScheduledEvent } from 'aws-lambda'
 
+import { ssmConfigProvider } from '@common/client/ssm-config-provider'
+import { requireEnv } from '@common/util/env'
 import { injectLambdaContext, logger } from '@govuk-one-login/cri-logger'
 import { logMetrics, metrics } from '@govuk-one-login/cri-metrics'
-import { ssmConfigProvider } from '@lib-common/client/ssm-config-provider'
-import { requireEnv } from '@lib-common/util/env'
 import {
   type TokenUpdateResult,
   tokenUpdateService

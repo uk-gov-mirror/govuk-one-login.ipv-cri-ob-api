@@ -1,7 +1,7 @@
 import type { ThirdPartyTokenPlugin } from '@src/thirdparty-async-token/plugin-api/token-plugin'
 
+import { requireEnv } from '@common/util/env'
 import { logger } from '@govuk-one-login/cri-logger'
-import { requireEnv } from '@lib-common/util/env'
 
 interface PluginModule {
   createPlugin: () => ThirdPartyTokenPlugin

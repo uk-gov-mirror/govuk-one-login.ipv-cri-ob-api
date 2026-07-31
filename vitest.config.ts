@@ -15,7 +15,6 @@ export default defineConfig({
         resolve: {
           alias: {
             '@common': path.resolve(__dirname, 'src/common'),
-            '@lib-common': path.resolve(__dirname, 'src/lib-common'),
             '@src': path.resolve(__dirname, 'src')
           }
         },

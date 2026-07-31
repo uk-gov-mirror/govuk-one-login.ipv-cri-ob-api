@@ -1,4 +1,4 @@
-import type { ConfigProfileName } from '@lib-common/util/client-config-profile-resolver'
+import type { ConfigProfileName } from '@common/util/client-config-profile-resolver'
 
 import { logger } from '@govuk-one-login/cri-logger'
 import {

@@ -5,11 +5,11 @@ const { mockGetConfig, mockInfo } = vi.hoisted(() => ({
   mockInfo: vi.fn()
 }))
 
-vi.mock('@lib-common/client/ssm-config-provider', () => ({
+vi.mock('@common/client/ssm-config-provider', () => ({
   ssmConfigProvider: { getConfig: mockGetConfig }
 }))
 
-vi.mock('@lib-common/util/env', () => ({
+vi.mock('@common/util/env', () => ({
   requireEnv: (name: string) => {
     const envs: Record<string, string> = {
       THIRDPARTY_TOKEN_PLUGIN_NAME: 'ob-token-plugin',

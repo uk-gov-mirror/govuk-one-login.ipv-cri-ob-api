@@ -8,9 +8,9 @@ import {
   logMetrics,
   resultRecorder
 } from '@common/handler/middleware'
+import { getConfigProfileNameFromClientId } from '@common/util/client-config-profile-resolver'
 import { logger } from '@govuk-one-login/cri-logger'
 import { metrics } from '@govuk-one-login/cri-metrics'
-import { getConfigProfileNameFromClientId } from '@lib-common/util/client-config-profile-resolver'
 import { retrieveTokenForConfigProfileName } from '@src/thirdparty-async-token/consumer/token-retrieval'
 
 import middy from '@middy/core'
