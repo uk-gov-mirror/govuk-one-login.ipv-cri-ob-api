@@ -164,10 +164,10 @@ TTL is calculated as: `now + itemTtlSeconds` where `itemTtlSeconds = maxLifetime
 
 ## Token Consumer
 
-Other lambdas read cached tokens via `retrieveTokenForConfigProfileName`:
+Other lambdas read cached tokens via `retrieveToken`:
 
 ```typescript
-const token = await retrieveTokenForConfigProfileName(configProfileName) // e.g ConfigProfileName: 'LIVE' | 'STUB' | 'UAT'
+const token = await retrieveToken(configProfileName) // e.g ConfigProfileName: 'LIVE' | 'STUB' | 'UAT'
 ```
 
 Returns:

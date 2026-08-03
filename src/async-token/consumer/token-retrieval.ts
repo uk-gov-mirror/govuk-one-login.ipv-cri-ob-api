@@ -8,7 +8,7 @@ import {
 import { thirdPartyTokenRepository } from '@src/async-token/common/client/token-repository'
 import { getThirdPartyTokenName } from '@src/async-token/common/util/token-naming'
 
-export const retrieveTokenForConfigProfileName = async (configProfileName: ConfigProfileName) => {
+export const retrieveToken = async (configProfileName: ConfigProfileName) => {
   const tokenName = getThirdPartyTokenName(configProfileName)
 
   logger.info(`Checking table for existing cached token named ${tokenName}`)

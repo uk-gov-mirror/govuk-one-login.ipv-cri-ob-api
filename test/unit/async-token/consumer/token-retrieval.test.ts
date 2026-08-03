@@ -22,9 +22,9 @@ vi.mock('@govuk-one-login/cri-logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn() }
 }))
 
-import { retrieveTokenForConfigProfileName } from '@src/async-token/consumer/token-retrieval'
+import { retrieveToken } from '@src/async-token/consumer/token-retrieval'
 
-describe('retrieveTokenForConfigProfileName', () => {
+describe('retrieveToken', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -37,7 +37,7 @@ describe('retrieveTokenForConfigProfileName', () => {
     })
     mockIsExpired.mockReturnValue(false)
 
-    const result = await retrieveTokenForConfigProfileName('STUB')
+    const result = await retrieveToken('STUB')
 
     expect(mockGetToken).toHaveBeenCalledWith('STUB-token-ob-token-plugin')
     expect(result).toBe('my-token')
@@ -51,7 +51,7 @@ describe('retrieveTokenForConfigProfileName', () => {
     })
     mockIsExpired.mockReturnValue(true)
 
-    const result = await retrieveTokenForConfigProfileName('STUB')
+    const result = await retrieveToken('STUB')
 
     expect(result).toBeUndefined()
   })
@@ -59,7 +59,7 @@ describe('retrieveTokenForConfigProfileName', () => {
   it('returns undefined when no token found', async () => {
     mockGetToken.mockResolvedValue(undefined)
 
-    const result = await retrieveTokenForConfigProfileName('STUB')
+    const result = await retrieveToken('STUB')
 
     expect(result).toBeUndefined()
   })

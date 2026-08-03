@@ -11,7 +11,7 @@ import {
 import { getConfigProfileNameFromClientId } from '@common/util/client-config-profile-resolver'
 import { logger } from '@govuk-one-login/cri-logger'
 import { metrics } from '@govuk-one-login/cri-metrics'
-import { retrieveTokenForConfigProfileName } from '@src/async-token/consumer/token-retrieval'
+import { retrieveToken } from '@src/async-token/consumer/token-retrieval'
 
 import middy from '@middy/core'
 
@@ -21,7 +21,7 @@ const lambdaHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPro
   // ThirdParty Token Example
   const clientIdFromSessionItem = 'ipv-core'
   const configProfileName = getConfigProfileNameFromClientId(clientIdFromSessionItem)
-  const tokenValue = await retrieveTokenForConfigProfileName(configProfileName)
+  const tokenValue = await retrieveToken(configProfileName)
 
   logger.info(`Token retrieved: ${!!tokenValue}`)
 

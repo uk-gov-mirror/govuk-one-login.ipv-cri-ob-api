@@ -482,7 +482,7 @@ The items below describe the intended final state of this design — kept here s
 
 ### Publish consumer as an npm package
 - Publish `../../../src/async-token/consumer/` as a standalone npm package
-- Contains `retrieveTokenForConfigProfileName` — used by other lambdas that read cached tokens from DynamoDB
+- Contains `retrieveToken` — used by other lambdas that read cached tokens from DynamoDB
 - Depends on `../../../src/async-token/common/`
 
 ### Publish to SAR
