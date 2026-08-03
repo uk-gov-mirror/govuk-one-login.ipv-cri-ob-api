@@ -3,9 +3,9 @@
 To enable differentiating between configurations needed for connecting to STUBS and those from the "THIRD-PARTY", we have also implemented the test data strategy [Test Data Strategy](https://govukverify.atlassian.net/wiki/spaces/DID/pages/3780116695/E2E+Test+Data+Strategy+Review).
 This requires mapping a number of OAuth clientIds to profiles and selecting the correct values for each dynamically at runtime.
 
-In OpenBanking there is an improved mechanism in place for managing profiles, saved in the SSM Parameter store, in preparation for a switch to APP config.
+In Open Banking there is an improved mechanism in place for managing profiles, saved in the SSM Parameter store, in preparation for a switch to AppConfig.
 
-The OAuth clientId to Profile mappings for OpenBanking CRI live in `client-config-profile-resolver.ts` to remain consistent with the Java based CRI using the same profile names, however the SSM layout is substantially different.
+The OAuth clientId to Profile mappings for Open Banking CRI live in `client-config-profile-resolver.ts` to remain consistent with the Java based CRI using the same profile names, however the SSM layout is substantially different.
 We are using a namespace-based approach to manage the profiles for each endpoint connection.
 
 ## SSM Parameter Layout
@@ -38,7 +38,7 @@ Example using namespace `ob-token-plugin` with profile `STUB`:
 
 The same parameters exist under each profile (`STUB`, `UAT`, `LIVE`) with values appropriate to each route.
 
-The namespace is chosen to represent the endpoint connection (e.g. `ob-token-plugin`, `ob_account_api`), not tied to any specific implementation pattern.
+The namespace is chosen to represent the endpoint connection (e.g. `ob-token-plugin`, `ob-banks-api`), not tied to any specific implementation pattern.
 
 ## Runtime Usage
 
@@ -50,7 +50,7 @@ interface ConfigProvider {
 }
 ```
 
-The concrete implementation `createSsmConfigProvider` uses `@aws-lambda-powertools/parameters/ssm` to recursively fetch and cache parameters at a given path. This abstraction is designed to allow swapping SSM for APP config later.
+The concrete implementation `ssmConfigProvider` uses `@aws-lambda-powertools/parameters/ssm` to recursively fetch and cache parameters at a given path. This abstraction is designed to allow swapping SSM for AppConfig later.
 
 Callers pass the profile path (e.g. `/{stack-name}/{namespace}/profiles/STUB`) to `getConfig`, which returns the flat key-value map. The plugin then validates the result with zod before use.
 
@@ -68,14 +68,14 @@ const profileName = getConfigProfileNameFromClientId(clientId) // e.g. 'STUB'
 
 ### 2. Build the SSM path and fetch config
 
-The config root comes from an environment variable (typically resolving to `/{stack-name}`). Use `createSsmConfigProvider` from `../../src/common/client/ssm-config-provider.ts`:
+The config root comes from an environment variable (typically resolving to `/{stack-name}`). Use `ssmConfigProvider` from `../../src/common/client/ssm-config-provider.ts`:
 
 ```typescript
-import { createSsmConfigProvider } from '@lib-common/client/ssm-config-provider'
+import { ssmConfigProvider } from '@common/client/ssm-config-provider'
 
-const configProvider = createSsmConfigProvider()
+const configProvider = ssmConfigProvider
 const configRoot = requireEnv('MY_ENDPOINT_SSM_CONFIG_ROOT')
-const namespace = 'my_endpoint_namespace'
+const namespace = 'my-endpoint-namespace'
 
 const config = await configProvider.getConfig(
   `${configRoot}/${namespace}/profiles/${profileName}`
