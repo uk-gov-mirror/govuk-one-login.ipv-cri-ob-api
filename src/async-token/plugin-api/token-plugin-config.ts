@@ -7,7 +7,7 @@ import { z } from 'zod'
 
 const configProvider: ConfigProvider = ssmConfigProvider
 
-const tokenPluginSSMSchema = z.object({
+const tokenPluginSsmSchema = z.object({
   enabledProfiles: z
     .string()
     .transform((val) => val.split('|'))
@@ -29,7 +29,7 @@ export const createThirdPartyTokenPluginConfig = async (): Promise<ThirdPartyTok
   const configRoot = requireEnv('THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT')
 
   const configPath = `${configRoot}/${pluginName}/config`
-  const ssmConfig = tokenPluginSSMSchema.parse(await configProvider.getConfig(configPath))
+  const ssmConfig = tokenPluginSsmSchema.parse(await configProvider.getConfig(configPath))
 
   // DynamoDB auto ttl deletion is the best effort (upto 48hrs later...)
   // Token Item ttl expiration enforced CRI side (vs dynamo filter expression)

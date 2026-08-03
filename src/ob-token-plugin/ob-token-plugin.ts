@@ -17,7 +17,7 @@ export const ecoSpendTokenResponseSchema = z.object({
   token_type: z.string()
 })
 
-export const tokenProfileSSMSchema = z.object({
+export const tokenProfileSsmSchema = z.object({
   'client-id': z.string().min(1),
   'client-secret': z.string().min(1),
   'endpoint-url': z.url(),
@@ -25,12 +25,12 @@ export const tokenProfileSSMSchema = z.object({
   scope: z.string().min(1)
 })
 
-export type TokenProfileSSMConfig = z.infer<typeof tokenProfileSSMSchema>
+export type TokenProfileSsmConfig = z.infer<typeof tokenProfileSsmSchema>
 
 const createObThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
   alertStatusCodes: [401, 403],
   buildTokenRequest: (input: PluginInput): ThirdPartyTokenRequestConfig => {
-    const config = tokenProfileSSMSchema.parse(input.config)
+    const config = tokenProfileSsmSchema.parse(input.config)
 
     const body = new URLSearchParams({
       client_id: config['client-id'],
@@ -76,8 +76,8 @@ const createObThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
     }
   },
   name: PLUGIN_NAME,
-  parseConfigProfile: (config: Record<string, string>): TokenProfileSSMConfig => {
-    return tokenProfileSSMSchema.parse(config)
+  parseConfigProfile: (config: Record<string, string>): TokenProfileSsmConfig => {
+    return tokenProfileSsmSchema.parse(config)
   }
 })
 
