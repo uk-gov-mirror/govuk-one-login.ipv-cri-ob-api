@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@aws-crypto/sha256-js": "5.2.0",
-    "@aws-sdk/credential-providers": "3.1070.0",
+    "@aws-sdk/credential-providers": "3.1099.0",
     "@cucumber/cucumber": "12.9.0",
     "@smithy/signature-v4": "4.2.4",
     "@cucumber/html-formatter": "23.1.0",
@@ -52,9 +52,9 @@
   "dependencies": {
     "@aws-lambda-powertools/logger": "2.31.0",
     "@aws-lambda-powertools/metrics": "2.31.0",
-    "@aws-sdk/client-dynamodb": "3.1070.0",
-    "@aws-sdk/client-kms": "3.1070.0",
-    "@aws-sdk/lib-dynamodb": "3.1070.0",
+    "@aws-sdk/client-dynamodb": "3.1099.0",
+    "@aws-sdk/client-kms": "3.1099.0",
+    "@aws-sdk/lib-dynamodb": "3.1099.0",
     "@govuk-one-login/cri-audit": "1.0.3",
     "@govuk-one-login/cri-error-response": "1.0.0",
     "@govuk-one-login/cri-logger": "1.1.0",
