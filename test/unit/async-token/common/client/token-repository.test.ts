@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
 
 vi.mock('@aws-sdk/client-dynamodb', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   DynamoDBClient: vi.fn(function () {})
 }))
 
