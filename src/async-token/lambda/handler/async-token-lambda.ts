@@ -20,25 +20,22 @@ const plugin = await loadPlugin()
 const configRoot = requireEnv('THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT')
 logger.appendKeys({ functionName: process.env['AWS_LAMBDA_FUNCTION_NAME'] ?? 'FunctionNameNotSet' })
 
-const updateForProfile = async (
-  pluginInput: PluginInput,
-  tokenForceUpdate: boolean
-): Promise<TokenUpdateResult> => {
-  logger.info('Updating token for profile', { tokenPrefix: pluginInput.tokenPrefix })
+// On cold start (deployment), force-update all profiles to ensure tokens are fresh.
+// Failures here must cause the Lambda invocation to fail, triggering canary rollback.
+logger.info('Bootstrapping tokens')
+await updateForAllEnabledProfiles(true)
 
-  const tokenUpdateResult = await tokenUpdateService.updateTokenIfNeeded(
-    pluginInput,
-    tokenForceUpdate
-  )
-  logger.info('Token update completed', {
-    tokenPrefix: pluginInput.tokenPrefix,
-    tokenUpdateResult
-  })
-
-  return tokenUpdateResult
+// Updates all enabled profiles in parallel on each scheduled invocation.
+const lambdaHandler = async (_event: ScheduledEvent): Promise<void> => {
+  await updateForAllEnabledProfiles(false)
 }
 
-const retrieveConfigProfile = async (tokenPrefix: string) => {
+export const handler = middy<ScheduledEvent, void>()
+  .use(injectLambdaContext(logger, { resetKeys: true }))
+  .use(logMetrics(metrics, { captureColdStartMetric: true }))
+  .handler(lambdaHandler)
+
+async function retrieveConfigProfile(tokenPrefix: string) {
   // SSM for now, App-config later
   const ssmConfigProfile = await configProvider.getConfig(
     `${configRoot}/${thirdPartyTokenPluginConfig.pluginName}/profiles/${tokenPrefix}`
@@ -49,7 +46,7 @@ const retrieveConfigProfile = async (tokenPrefix: string) => {
 // Updates all profiles in parallel.
 // Individual failures are caught and logged — a single failing prefix
 // does not prevent the others from completing.
-const updateForAllEnabledProfiles = async (tokenForceUpdate: boolean): Promise<void> => {
+async function updateForAllEnabledProfiles(tokenForceUpdate: boolean): Promise<void> {
   const enabledProfiles = thirdPartyTokenPluginConfig.enabledProfiles
   logger.info('Updating all enabled profiles', { enabledProfiles })
 
@@ -73,17 +70,20 @@ const updateForAllEnabledProfiles = async (tokenForceUpdate: boolean): Promise<v
   }
 }
 
-// On cold start (deployment), force-update all profiles to ensure tokens are fresh.
-// Failures here must cause the Lambda invocation to fail, triggering canary rollback.
-logger.info('Bootstrapping tokens')
-await updateForAllEnabledProfiles(true)
+async function updateForProfile(
+  pluginInput: PluginInput,
+  tokenForceUpdate: boolean
+): Promise<TokenUpdateResult> {
+  logger.info('Updating token for profile', { tokenPrefix: pluginInput.tokenPrefix })
 
-// Updates all enabled profiles in parallel on each scheduled invocation.
-const lambdaHandler = async (_event: ScheduledEvent): Promise<void> => {
-  await updateForAllEnabledProfiles(false)
+  const tokenUpdateResult = await tokenUpdateService.updateTokenIfNeeded(
+    pluginInput,
+    tokenForceUpdate
+  )
+  logger.info('Token update completed', {
+    tokenPrefix: pluginInput.tokenPrefix,
+    tokenUpdateResult
+  })
+
+  return tokenUpdateResult
 }
-
-export const handler = middy<ScheduledEvent, void>()
-  .use(injectLambdaContext(logger, { resetKeys: true }))
-  .use(logMetrics(metrics, { captureColdStartMetric: true }))
-  .handler(lambdaHandler)
