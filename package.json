@@ -31,7 +31,7 @@
     "@aws-crypto/sha256-js": "5.2.0",
     "@aws-sdk/credential-providers": "3.1070.0",
     "@cucumber/cucumber": "12.9.0",
-    "@smithy/signature-v4": "4.2.4",
+    "@smithy/signature-v4": "5.6.12",
     "@cucumber/html-formatter": "23.1.0",
     "@eslint/js": "10.0.1",
     "@types/aws-lambda": "8.10.162",
