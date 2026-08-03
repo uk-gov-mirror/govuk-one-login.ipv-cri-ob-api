@@ -51,21 +51,8 @@ const createObThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
   },
   isTokenValid: (tokenResponse: ThirdPartyTokenResponse) => {
     try {
-      // TODO: Currently validates as a non-empty string (token is a UUID).
-      // Once confirmed as JWT, validate header and body minimally, e.g:
-      //
-      // const [tokenHeaderB64] = tokenResponse.tokenValue.split('.')
-      // if (!tokenHeaderB64) return false
-      // const header = JSON.parse(Buffer.from(tokenHeaderB64, 'base64url').toString()) as {
-      //   alg?: string
-      //   typ?: string
-      // }
-      // return header.alg === 'RS256' && header.typ === 'JWT'
-      //
-      // Note: stubs will need a representative token value so validation always passes
-
-      // This uuid validation is temporary
-      return z.uuid().safeParse(tokenResponse.tokenValue).success
+      // TODO: temporary placeholder validation - see crosscore token validation
+      return z.string().min(1).safeParse(tokenResponse.tokenValue).success
     } catch {
       return false
     }

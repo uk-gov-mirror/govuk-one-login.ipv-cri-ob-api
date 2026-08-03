@@ -138,12 +138,12 @@ describe('createObThirdPartyTokenPlugin', () => {
 
   // Temporarily testing a uuid
   describe('isTokenValid', () => {
-    it('returns true for a valid UUID', () => {
+    it('returns true for a non-empty token value', () => {
       expect(plugin.isTokenValid({ tokenValue: '550e8400-e29b-41d4-a716-446655440000' })).toBe(true)
     })
 
-    it('returns false for a non-UUID token', () => {
-      expect(plugin.isTokenValid({ tokenValue: 'some-token' })).toBe(false)
+    it('returns false for an empty token value', () => {
+      expect(plugin.isTokenValid({ tokenValue: '' })).toBe(false)
     })
   })
 
