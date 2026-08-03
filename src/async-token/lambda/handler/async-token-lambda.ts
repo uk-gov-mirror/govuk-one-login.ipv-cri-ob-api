@@ -73,13 +73,11 @@ const updateForAllEnabledProfiles = async (tokenForceUpdate: boolean): Promise<v
   }
 }
 
-// -- Bootstrap --------------------------------------------------------------------
 // On cold start (deployment), force-update all profiles to ensure tokens are fresh.
 // Failures here must cause the Lambda invocation to fail, triggering canary rollback.
 logger.info('Bootstrapping tokens')
 await updateForAllEnabledProfiles(true)
 
-// -- Handler ------------------------------------------------------------------
 // Updates all enabled profiles in parallel on each scheduled invocation.
 const lambdaHandler = async (_event: ScheduledEvent): Promise<void> => {
   await updateForAllEnabledProfiles(false)
