@@ -24,18 +24,16 @@ const updateForProfile = async (
   pluginInput: PluginInput,
   tokenForceUpdate: boolean
 ): Promise<TokenUpdateResult> => {
-  logger.info(`Updating token for ${pluginInput.tokenPrefix}`, {
-    tokenPrefix: pluginInput.tokenPrefix
-  })
+  logger.info('Updating token for profile', { tokenPrefix: pluginInput.tokenPrefix })
 
   const tokenUpdateResult = await tokenUpdateService.updateTokenIfNeeded(
     pluginInput,
     tokenForceUpdate
   )
-  logger.info(
-    `Third-party token update status ${tokenUpdateResult.updated} - ${tokenUpdateResult.message}`,
-    { tokenPrefix: pluginInput.tokenPrefix }
-  )
+  logger.info('Token update completed', {
+    tokenPrefix: pluginInput.tokenPrefix,
+    tokenUpdateResult
+  })
 
   return tokenUpdateResult
 }
@@ -53,7 +51,7 @@ const retrieveConfigProfile = async (tokenPrefix: string) => {
 // does not prevent the others from completing.
 const updateForAllEnabledProfiles = async (tokenForceUpdate: boolean): Promise<void> => {
   const enabledProfiles = thirdPartyTokenPluginConfig.enabledProfiles
-  logger.info(`Updating all enabled profiles: ${enabledProfiles.join(', ')}`)
+  logger.info('Updating all enabled profiles', { enabledProfiles })
 
   const failures: string[] = []
 
@@ -64,7 +62,7 @@ const updateForAllEnabledProfiles = async (tokenForceUpdate: boolean): Promise<v
         await updateForProfile({ config, tokenPrefix }, tokenForceUpdate)
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error'
-        logger.error(`Failed for token prefix: ${tokenPrefix} - ${message}`)
+        logger.error('Failed to update token for profile', { errorMessage: message, tokenPrefix })
         failures.push(tokenPrefix)
       }
     })

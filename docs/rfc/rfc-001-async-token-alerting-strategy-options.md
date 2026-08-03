@@ -92,7 +92,7 @@ The alarm tells you "the token Lambda errored" but not which prefix(es) failed.
 
 ### Consumer Service
 
-Consumer Lambdas call `retrieveTokenForConfigProfileName(profileName)` which returns `undefined` when:
+Consumer Lambdas call `retrieveToken(profileName)` which returns `undefined` when:
 - No token exists in DynamoDB for the requested profile
 - The token's TTL has expired
 
@@ -183,7 +183,7 @@ Two custom metrics, one alarm each:
 - Lives in the nested stack — the stack owns the Lambda and can alarm on its custom metric
 
 **Consumer Service:**
-- **Metric**: `TokenRetrievalUnavailable` (count = 1), emitted when `retrieveTokenForConfigProfileName` returns `undefined`
+- **Metric**: `TokenRetrievalUnavailable` (count = 1), emitted when `retrieveToken` returns `undefined`
 - **Alarm**: `ThirdPartyToken-<PluginName>-TokenRetrievalUnavailable`
 - **Description**: "<PluginName> - A consumer Lambda could not retrieve a valid token. Check logs for which profile and consumer."
 - Must live in the parent stack — the nested stack has no visibility into which Lambdas consume the token or which profiles they request
@@ -296,7 +296,7 @@ Emit in `token-retrieval.ts` when returning `undefined`:
 metrics.addMetric('TokenRetrievalUnavailable', MetricUnit.Count, 1)
 ```
 
-The metric emission is baked into the shared consumer library (`thirdparty-async-token-consumer`), so any Lambda using `retrieveTokenForConfigProfileName` emits it automatically.
+The metric emission is baked into the shared consumer library (`thirdparty-async-token-consumer`), so any Lambda using `retrieveToken` emits it automatically.
 
 **Alarm**: Must be defined in the parent stack (or wherever the consuming Lambda is defined) — the nested stack does not own consumer Lambda log groups or metric namespaces. The parent stack references the consumer Lambda's metric namespace and creates the alarm.
 

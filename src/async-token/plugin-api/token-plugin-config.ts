@@ -40,6 +40,7 @@ export const createThirdPartyTokenPluginConfig = async (): Promise<ThirdPartyTok
   // e.g 900 = 1200-300
   const itemTtlSeconds = maxLifetimeSeconds - expirationWindowSeconds
 
+  // Deliberately not using structured log keys here so the whole config reads at a glance on one line
   logger.info(
     `Token Config - pluginName=${pluginName} maxAllowedLifetimeSeconds=${maxLifetimeSeconds} tokenExpirationWindowSeconds=${expirationWindowSeconds} itemTtlSeconds(calculated)=${itemTtlSeconds}`
   )

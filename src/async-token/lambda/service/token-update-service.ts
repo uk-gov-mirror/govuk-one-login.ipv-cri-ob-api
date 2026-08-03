@@ -36,7 +36,8 @@ const createThirdPartyTokenUpdateService = (
   pluginConfig: ThirdPartyTokenPluginConfig
 ): ThirdPartyTokenUpdateService => ({
   updateTokenIfNeeded: async (pluginInput, tokenForceUpdate) => {
-    const tokenName = getThirdPartyTokenName(pluginInput.tokenPrefix)
+    const { tokenPrefix } = pluginInput
+    const tokenName = getThirdPartyTokenName(tokenPrefix)
     const token = await tokenRepository.getToken(tokenName)
     const hasExistingToken = token !== undefined
     const ttlExpired =
@@ -58,12 +59,12 @@ const createThirdPartyTokenUpdateService = (
     ]
       .filter(Boolean)
       .join(', ')
-    logger.info(`New ${tokenName} token requested - reason: ${reasons}`)
+    logger.info('New token requested', { tokenPrefix, tokenName, reason: reasons })
 
     const result = await performNewTokenRequest(plugin, pluginInput, pluginConfig)
 
     if (result.tokenValue) {
-      logger.info(`Saving Token ${tokenName} to ThirdPartyTokenRepository`)
+      logger.info('Saving token to repository', { tokenPrefix, tokenName })
       const ttl = Math.floor(Date.now() / 1000) + pluginConfig.itemTtlSeconds
       await tokenRepository.putToken({ id: tokenName, tokenValue: result.tokenValue, ttl })
       return { message: `${result.message}, Token ${tokenName} Saved`, updated: true }
@@ -113,7 +114,10 @@ const performNewTokenRequest = async (
     // TODO METRIC
     if (response.status !== 200) {
       if (tokenPlugin.alertStatusCodes.includes(response.status)) {
-        logger.warn(`Status code ${response.status}, triggered alert metric`)
+        logger.warn('Non-200 from token endpoint, alert metric triggered', {
+          statusCode: response.status,
+          tokenPrefix: pluginInput.tokenPrefix
+        })
       }
 
       // Token update failed - don't clear existing token

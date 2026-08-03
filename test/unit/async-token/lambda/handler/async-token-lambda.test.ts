@@ -210,7 +210,10 @@ describe('async-token-lambda handler', () => {
       mockUpdateTokenIfNeeded.mockRejectedValue('plain string error')
 
       await expect(handler(buildScheduledEvent())).rejects.toThrow('Failed for token prefixes')
-      expect(mockError).toHaveBeenCalledWith(expect.stringContaining('Unknown error'))
+      expect(mockError).toHaveBeenCalledWith(
+        'Failed to update token for profile',
+        expect.objectContaining({ errorMessage: 'Unknown error' })
+      )
     })
 
     it('throws aggregated error when SSM fetch fails for a profile', async () => {
