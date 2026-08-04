@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform:
   - AWS::Serverless-2016-10-31
-
 Description: "Digital Identity IPV CRI Open Banking API"
 Metadata:
   cfn-lint:
@@ -60,7 +59,7 @@ Parameters:
     Type: String
     Default: AllAtOnce
   ThirdPartyTokenPluginName:
-    Description: "Specifies the name of the plugin used by the thirdparty token stack and support libraries"
+    Description: "Specifies the name of the plugin used by the third-party token stack and support libraries"
     Type: String
     Default: "ob-token-plugin"
   ThirdPartyTokenResourcePrefix:
@@ -243,7 +242,7 @@ Resources:
   ThirdPartyToken:
     Type: AWS::Serverless::Application
     Properties:
-      Location: ./thirdparty-token.yaml
+      Location: ./third-party-token.yaml
       Parameters:
         ParentStackName: !Ref AWS::StackName
         ThirdPartyTokenPluginName: !Ref ThirdPartyTokenPluginName
@@ -609,7 +608,7 @@ Resources:
           THIRDPARTY_TOKEN_PLUGIN_NAME: !Ref ThirdPartyTokenPluginName
           THIRDPARTY_TOKEN_DYNAMO_TABLE_NAME:
             !Sub
-            - "${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-thirdparty-token-table"
+            - "${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-third-party-token-table"
             - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref AWS::StackName ]
           THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT: !Sub
             - "/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}"
@@ -627,7 +626,7 @@ Resources:
                 - "dynamodb:GetItem"
               Resource:
                 !Sub
-                - "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-thirdparty-token-table"
+                - "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-third-party-token-table"
                 - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref AWS::StackName ]
             - Effect: Allow
               Action:

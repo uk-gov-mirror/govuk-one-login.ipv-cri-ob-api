@@ -17,7 +17,7 @@ echo -e "${GREEN}[INFO]${NOCOLOUR} ❯ Deploying ipv-cri-ob-api"
 echo -e "${GREEN}[INFO]${NOCOLOUR} ❯ stack=${stack_name} region=eu-west-2"
 
 echo -e "${BLUE}[1/4]${NOCOLOUR}  ❯ Running cfn-lint"
-cfn-lint -t deploy/template.yaml -t deploy/thirdparty-token.yaml -f pretty
+cfn-lint -t deploy/template.yaml -t deploy/third-party-token.yaml -f pretty
 echo -e "${BLUE}[2/4]${NOCOLOUR}  ❯ Running sam validate"
 sam validate -t deploy/template.yaml --lint
 echo -e "${BLUE}[3/4]${NOCOLOUR}  ❯ Building"

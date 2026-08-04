@@ -172,7 +172,7 @@ Resources:
             - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref ParentStackName ]
           THIRDPARTY_TOKEN_DYNAMO_TABLE_NAME:
             !Sub
-            - "${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-thirdparty-token-table"
+            - "${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-third-party-token-table"
             - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref ParentStackName ]
           # Forces AutoPublishAlias to publish a new function version when the layer changes.
           # Without this, layer updates may not trigger.
@@ -206,7 +206,7 @@ Resources:
                 - "dynamodb:DeleteItem"
               Resource:
                 !Sub
-                - "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-thirdparty-token-table"
+                - "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-third-party-token-table"
                 - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref ParentStackName ]
     Metadata:
       BuildMethod: esbuild
@@ -261,7 +261,7 @@ Resources:
   ThirdPartyTokenTable:
     Type: "AWS::DynamoDB::Table"
     Properties:
-      TableName: !Sub "${ParentStackName}-thirdparty-token-table"
+      TableName: !Sub "${ParentStackName}-third-party-token-table"
       BillingMode: "PAY_PER_REQUEST"
       AttributeDefinitions:
         - AttributeName: "id"

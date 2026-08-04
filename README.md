@@ -140,7 +140,7 @@ Covers the scheduled token refresh mechanism: Lambda lifecycle (cold-start boots
 #### Plugin Architecture
 [`docs/lambdas/async-token/token-plugin-architecture.md`](docs/lambdas/async-token/token-plugin-architecture.md)
 
-Describes the Lambda Layer plugin injection pattern used to decouple the `thirdparty-token` nested stack from any specific plugin implementation. Covers the `createPlugin()` contract, plugin filename convention, the `plugin-loader.ts` dynamic import mechanism, layer build via Makefile, canary deployment guarantee via `THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN`, and the target architecture for SAR publication.
+Describes the Lambda Layer plugin injection pattern used to decouple the `third-party-token` nested stack from any specific plugin implementation. Covers the `createPlugin()` contract, plugin filename convention, the `plugin-loader.ts` dynamic import mechanism, layer build via Makefile, canary deployment guarantee via `THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN`, and the target architecture for SAR publication.
 
 #### Plugin Layer — Authoring Guide
 [`docs/lambdas/async-token/plugin-layer-authoring-guide.md`](docs/lambdas/async-token/plugin-layer-authoring-guide.md)
