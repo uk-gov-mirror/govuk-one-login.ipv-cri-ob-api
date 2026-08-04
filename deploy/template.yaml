@@ -610,9 +610,6 @@ Resources:
             !Sub
             - "${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-third-party-token-table"
             - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref AWS::StackName ]
-          THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT: !Sub
-            - "/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}"
-            - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref AWS::StackName ]
       AutoPublishAlias: live
       AutoPublishAliasAllProperties: true
       Policies:
@@ -628,14 +625,6 @@ Resources:
                 !Sub
                 - "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}-third-party-token-table"
                 - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref AWS::StackName ]
-            - Effect: Allow
-              Action:
-                - ssm:GetParametersByPath
-              Resource:
-                - !Sub
-                  - "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${THIRDPARTY_TOKEN_RESOURCE_PREFIX}/${ThirdPartyTokenPluginName}/*"
-                  - THIRDPARTY_TOKEN_RESOURCE_PREFIX: !If [ UsingThirdPartyTokenResourcePrefix, !Ref ThirdPartyTokenResourcePrefix, !Ref AWS::StackName ]
-                    ThirdPartyTokenPluginName: !Ref ThirdPartyTokenPluginName
       ProvisionedConcurrencyConfig:
         !If
         - AddProvisionedConcurrency
