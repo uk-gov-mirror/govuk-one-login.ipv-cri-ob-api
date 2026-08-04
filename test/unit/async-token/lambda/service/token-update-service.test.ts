@@ -117,7 +117,6 @@ describe('tokenUpdateService', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    vi.useRealTimers()
   })
 
   it('skips update when token exists, is not near expiration, and force is false', async () => {
@@ -228,6 +227,20 @@ describe('tokenUpdateService', () => {
     expect(result.message).toContain('Network timeout')
   })
 
+  it('returns failure when the response body read rejects (body-read timeout/abort)', async () => {
+    setupNoExistingTokenWithRequest()
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      text: () => Promise.reject(new Error('The operation was aborted'))
+    } as unknown as Response)
+
+    const result = await tokenUpdateService.updateTokenIfNeeded(buildPluginInput(), false)
+
+    expect(result.updated).toBe(false)
+    expect(result.message).toContain('Error during token request')
+    expect(result.message).toContain('The operation was aborted')
+  })
+
   it('returns failure when buildTokenRequest throws', async () => {
     mockGetToken.mockResolvedValue(undefined)
     mockPlugin.buildTokenRequest.mockImplementation(() => {
@@ -239,24 +252,5 @@ describe('tokenUpdateService', () => {
     expect(result.updated).toBe(false)
     expect(result.message).toContain('Error during token request')
     expect(result.message).toContain('Invalid config')
-  })
-
-  it('returns failure when 200 response body read times out', async () => {
-    vi.useFakeTimers()
-    setupNoExistingTokenWithRequest()
-    vi.mocked(fetch).mockResolvedValue({
-      status: 200,
-      text: () =>
-        new Promise(() => {
-          /* never resolves */
-        })
-    } as unknown as Response)
-
-    const resultPromise = tokenUpdateService.updateTokenIfNeeded(buildPluginInput(), false)
-    await vi.advanceTimersByTimeAsync(10_000)
-    const result = await resultPromise
-
-    expect(result.updated).toBe(false)
-    expect(result.message).toContain('Response body read timed out')
   })
 })

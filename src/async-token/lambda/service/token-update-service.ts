@@ -108,13 +108,8 @@ const performNewTokenRequest = async (
       signal: AbortSignal.timeout(requestConfig.timeoutMs)
     })
 
-    // AbortSignal only covers until headers arrive — body read needs its own timeout
-    const responseBody = await Promise.race([
-      response.text(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Response body read timed out')), requestConfig.timeoutMs)
-      )
-    ])
+    // One AbortSignal timeout covers the whole request (connect + body).
+    const responseBody = await response.text()
 
     // The token request responded but with an unexpected status code
     // TODO METRIC
