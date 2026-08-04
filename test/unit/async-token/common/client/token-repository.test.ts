@@ -1,3 +1,5 @@
+import type { ThirdPartyTokenEntity } from '@src/async-token/common/types/token-entity'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
@@ -28,6 +30,13 @@ vi.mock('@common/util/env', () => ({
 
 import { thirdPartyTokenRepository } from '@src/async-token/common/client/token-repository'
 
+const buildEntity = (): ThirdPartyTokenEntity => ({
+  id: 'token-1',
+  pad: 30,
+  tokenValue: 'abc',
+  ttl: 123
+})
+
 describe('thirdPartyTokenRepository', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -35,7 +44,7 @@ describe('thirdPartyTokenRepository', () => {
 
   describe('getToken', () => {
     it('returns entity when found', async () => {
-      const entity = { id: 'token-1', tokenValue: 'abc', ttl: 123 }
+      const entity = buildEntity()
       mockSend.mockResolvedValue({ Item: entity })
 
       const result = await thirdPartyTokenRepository.getToken('token-1')
@@ -58,7 +67,7 @@ describe('thirdPartyTokenRepository', () => {
   describe('putToken', () => {
     it('sends PutCommand with correct table and entity', async () => {
       mockSend.mockResolvedValue({})
-      const entity = { id: 'token-1', tokenValue: 'abc', ttl: 123 }
+      const entity = buildEntity()
 
       await thirdPartyTokenRepository.putToken(entity)
 

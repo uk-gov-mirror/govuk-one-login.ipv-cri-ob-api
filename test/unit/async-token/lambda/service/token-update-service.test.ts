@@ -6,24 +6,31 @@ import type {
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockClearToken, mockGetToken, mockIsNearExpiration, mockPlugin, mockPutToken } = vi.hoisted(
-  () => ({
-    mockClearToken: vi.fn(),
-    mockGetToken: vi.fn(),
-    mockIsNearExpiration: vi.fn(),
-    mockPlugin: {
-      alertStatusCodes: [401, 403],
-      buildTokenRequest: vi.fn(),
-      isTokenValid: vi.fn(),
-      mapResponse: vi.fn(),
-      name: 'ob-token-plugin',
-      parseConfigProfile: vi.fn()
-    },
-    mockPutToken: vi.fn()
-  })
-)
+const {
+  mockCalculateItemTtl,
+  mockClearToken,
+  mockGetToken,
+  mockIsNearExpiration,
+  mockPlugin,
+  mockPutToken
+} = vi.hoisted(() => ({
+  mockCalculateItemTtl: vi.fn(),
+  mockClearToken: vi.fn(),
+  mockGetToken: vi.fn(),
+  mockIsNearExpiration: vi.fn(),
+  mockPlugin: {
+    alertStatusCodes: [401, 403],
+    buildTokenRequest: vi.fn(),
+    isTokenValid: vi.fn(),
+    mapResponse: vi.fn(),
+    name: 'ob-token-plugin',
+    parseConfigProfile: vi.fn()
+  },
+  mockPutToken: vi.fn()
+}))
 
 vi.mock('@src/async-token/common', () => ({
+  calculateItemTtl: mockCalculateItemTtl,
   formatThirdPartyTokenExpiryDateTime: (ttl: number) => new Date(ttl * 1000).toISOString(),
   isThirdPartyTokenNearExpiration: mockIsNearExpiration
 }))
@@ -47,10 +54,10 @@ vi.mock('@src/async-token/lambda/util/plugin-loader', () => ({
 vi.mock('@src/async-token/plugin-api/token-plugin-config', () => ({
   thirdPartyTokenPluginConfig: {
     enabledProfiles: ['strategy'],
-    expirationWindowSeconds: 300,
-    itemTtlSeconds: 3300,
-    maxLifetimeSeconds: 3600,
-    pluginName: 'ob-token-plugin'
+    pluginName: 'ob-token-plugin',
+    tokenExpirationPadSeconds: 30,
+    tokenExpirationWindowSeconds: 300,
+    tokenMaxAllowedLifetimeSeconds: 3600
   }
 }))
 
@@ -90,6 +97,7 @@ const buildPluginInput = (overrides?: Partial<PluginInput>): PluginInput => ({
 
 const buildTokenEntity = (overrides?: Partial<ThirdPartyTokenEntity>): ThirdPartyTokenEntity => ({
   id: 'strategy_suffix',
+  pad: 30,
   tokenValue: 'tok',
   ttl: 9_999_999_999, // far future
   ...overrides
@@ -104,6 +112,7 @@ describe('tokenUpdateService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn())
+    mockCalculateItemTtl.mockReturnValue(1_700_000_000)
   })
 
   afterEach(() => {
@@ -130,8 +139,9 @@ describe('tokenUpdateService', () => {
     const result = await tokenUpdateService.updateTokenIfNeeded(buildPluginInput(), false)
 
     expect(result.updated).toBe(true)
+    expect(mockCalculateItemTtl).toHaveBeenCalledWith(3600)
     expect(mockPutToken).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'strategy_suffix', tokenValue: 'jwt' })
+      expect.objectContaining({ id: 'strategy_suffix', tokenValue: 'jwt', ttl: 1_700_000_000 })
     )
   })
 
@@ -146,8 +156,9 @@ describe('tokenUpdateService', () => {
     const result = await tokenUpdateService.updateTokenIfNeeded(buildPluginInput(), true)
 
     expect(result.updated).toBe(true)
+    expect(mockCalculateItemTtl).toHaveBeenCalledWith(3600)
     expect(mockPutToken).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'strategy_suffix', tokenValue: 'new-jwt' })
+      expect.objectContaining({ id: 'strategy_suffix', tokenValue: 'new-jwt', ttl: 1_700_000_000 })
     )
   })
 

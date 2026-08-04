@@ -26,7 +26,8 @@ export const retrieveToken = async (configProfileName: ConfigProfileName) => {
 
   // Uses isThirdPartyTokenExpired (30s pad) rather than isThirdPartyTokenNearExpiration because
   // consumers should use the token until the last safe moment
-  const tokenTtlHasExpired = existingCachedToken && isThirdPartyTokenExpired(tokenEntity)
+  const tokenTtlHasExpired =
+    existingCachedToken && isThirdPartyTokenExpired(tokenEntity)
 
   const retrievalStatus = resolveRetrievalStatus(existingCachedToken, tokenTtlHasExpired)
 

@@ -1,8 +1,9 @@
-import type { ThirdPartyTokenRepository } from '@src/async-token/common'
 import type { PluginInput, ThirdPartyTokenPlugin } from '@src/async-token/plugin-api/token-plugin'
 
 import { logger } from '@govuk-one-login/cri-logger'
+import { type ThirdPartyTokenRepository } from '@src/async-token/common'
 import {
+  calculateItemTtl,
   formatThirdPartyTokenExpiryDateTime,
   isThirdPartyTokenNearExpiration
 } from '@src/async-token/common'
@@ -42,7 +43,7 @@ const createThirdPartyTokenUpdateService = (
     const hasExistingToken = token !== undefined
     const ttlExpired =
       hasExistingToken &&
-      isThirdPartyTokenNearExpiration(token, pluginConfig.expirationWindowSeconds)
+      isThirdPartyTokenNearExpiration(token, pluginConfig.tokenExpirationWindowSeconds)
 
     if (hasExistingToken && !ttlExpired && !tokenForceUpdate) {
       return {
@@ -65,8 +66,13 @@ const createThirdPartyTokenUpdateService = (
 
     if (result.tokenValue) {
       logger.info('Saving token to repository', { tokenPrefix, tokenName })
-      const ttl = Math.floor(Date.now() / 1000) + pluginConfig.itemTtlSeconds
-      await tokenRepository.putToken({ id: tokenName, tokenValue: result.tokenValue, ttl })
+      const ttl = calculateItemTtl(pluginConfig.tokenMaxAllowedLifetimeSeconds)
+      await tokenRepository.putToken({
+        id: tokenName,
+        tokenValue: result.tokenValue,
+        pad: pluginConfig.tokenExpirationPadSeconds,
+        ttl
+      })
       return { message: `${result.message}, Token ${tokenName} Saved`, updated: true }
     }
 
@@ -130,8 +136,8 @@ const performNewTokenRequest = async (
     // Mapper failure TODO METRIC - API RES Invalid
     const tokenResponse = tokenPlugin.mapResponse(
       responseBody,
-      pluginConfig.maxLifetimeSeconds,
-      pluginConfig.expirationWindowSeconds
+      pluginConfig.tokenMaxAllowedLifetimeSeconds,
+      pluginConfig.tokenExpirationWindowSeconds
     )
     if (!tokenResponse) {
       return { message: 'Token response mapping failed', tokenValue: undefined }

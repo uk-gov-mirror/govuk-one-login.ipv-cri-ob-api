@@ -70,10 +70,10 @@ const buildPluginConfig = (
   overrides?: Partial<ThirdPartyTokenPluginConfig>
 ): ThirdPartyTokenPluginConfig => ({
   enabledProfiles: ['STUB', 'UAT'],
-  expirationWindowSeconds: 300,
-  itemTtlSeconds: 3300,
-  maxLifetimeSeconds: 3600,
   pluginName: 'ob-token-plugin',
+  tokenExpirationPadSeconds: 30,
+  tokenExpirationWindowSeconds: 300,
+  tokenMaxAllowedLifetimeSeconds: 3600,
   ...overrides
 })
 
