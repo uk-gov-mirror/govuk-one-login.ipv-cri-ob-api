@@ -136,8 +136,7 @@ const performNewTokenRequest = async (
     // Mapper failure TODO METRIC - API RES Invalid
     const tokenResponse = tokenPlugin.mapResponse(
       responseBody,
-      pluginConfig.tokenMaxAllowedLifetimeSeconds,
-      pluginConfig.tokenExpirationWindowSeconds
+      pluginConfig.tokenMaxAllowedLifetimeSeconds
     )
     if (!tokenResponse) {
       return { message: 'Token response mapping failed', tokenValue: undefined }

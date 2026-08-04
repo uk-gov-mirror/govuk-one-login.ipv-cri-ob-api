@@ -18,9 +18,7 @@ export const isThirdPartyTokenNearExpiration = (
 // If we attempt to use a token too close to expiry, the token could
 // expire before the CRI gets around to using it.
 // pad is used to avoid using a token too close to expiry
-export const isThirdPartyTokenExpired = (
-  entity: ThirdPartyTokenEntity,
-): boolean => {
+export const isThirdPartyTokenExpired = (entity: ThirdPartyTokenEntity): boolean => {
   const now = Math.floor(Date.now() / 1000)
   return now >= entity.ttl - entity.pad
 }

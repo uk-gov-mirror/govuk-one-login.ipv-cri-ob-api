@@ -57,14 +57,13 @@ const createObThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
       return false
     }
   },
-  mapResponse: (responseBody, maxLifetimeSeconds: number, expirationWindowSeconds: number) => {
+  mapResponse: (responseBody, maxAllowedLifetimeSeconds: number) => {
     try {
+      // Rejects the response as invalid if expires_in does not meet this condition
+      // ttl is set from config, so a shorter remote expires_in must be treated as failures
       const parsed = ecoSpendTokenResponseSchema
-        .refine((data) => data.expires_in >= maxLifetimeSeconds, {
-          message: `expires_in must be greater than or equal to maxLifetimeSeconds: ${maxLifetimeSeconds}`
-        })
-        .refine((data) => data.expires_in > expirationWindowSeconds, {
-          message: `expires_in must be greater than expirationWindowSeconds: ${expirationWindowSeconds}`
+        .refine((data) => data.expires_in >= maxAllowedLifetimeSeconds, {
+          message: `expires_in must be greater than or equal to maxAllowedLifetimeSeconds: ${maxAllowedLifetimeSeconds} — token lifetime is shorter than the stored ttl`
         })
         .parse(JSON.parse(responseBody))
 

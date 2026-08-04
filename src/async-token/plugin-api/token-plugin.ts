@@ -11,8 +11,7 @@ export interface ThirdPartyTokenPlugin {
   isTokenValid: (tokenResponse: ThirdPartyTokenResponse) => boolean
   mapResponse: (
     responseBody: string,
-    maxLifetimeSeconds: number,
-    expirationWindowSeconds: number
+    maxAllowedLifetimeSeconds: number
   ) => ThirdPartyTokenResponse | undefined
   name: string
   parseConfigProfile: (config: Record<string, string>) => Record<string, string>

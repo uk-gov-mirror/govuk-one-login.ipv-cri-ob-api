@@ -40,9 +40,8 @@ describe('createThirdPartyTokenPluginConfig', () => {
   it('returns valid config when SSM values are within allowed bounds', async () => {
     mockGetConfig.mockResolvedValue(buildSsmConfig())
 
-    const { thirdPartyTokenPluginConfig } = await import(
-      '@src/async-token/plugin-api/token-plugin-config'
-    )
+    const { thirdPartyTokenPluginConfig } =
+      await import('@src/async-token/plugin-api/token-plugin-config')
 
     expect(thirdPartyTokenPluginConfig.pluginName).toBe('ob-token-plugin')
     expect(thirdPartyTokenPluginConfig.tokenMaxAllowedLifetimeSeconds).toBe(3600)
@@ -58,9 +57,7 @@ describe('createThirdPartyTokenPluginConfig', () => {
     await import('@src/async-token/plugin-api/token-plugin-config')
 
     expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('ob-token-plugin'))
-    expect(mockInfo).toHaveBeenCalledWith(
-      expect.stringContaining('tokenExpirationPadSeconds=30')
-    )
+    expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('tokenExpirationPadSeconds=30'))
   })
 
   it('throws when the expiration window is shorter than two scheduler intervals', async () => {

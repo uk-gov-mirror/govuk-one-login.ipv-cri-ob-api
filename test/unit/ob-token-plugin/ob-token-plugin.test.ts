@@ -46,8 +46,7 @@ describe('createObThirdPartyTokenPlugin', () => {
   })
 
   describe('mapResponse', () => {
-    const maxLifetimeSeconds = 3600
-    const expirationWindowSeconds = 300
+    const maxAllowedLifetimeSeconds = 3600
 
     const validBody = (expires_in = 3600) =>
       JSON.stringify({
@@ -58,23 +57,20 @@ describe('createObThirdPartyTokenPlugin', () => {
       })
 
     it('extracts access_token from valid response', () => {
-      expect(plugin.mapResponse(validBody(), maxLifetimeSeconds, expirationWindowSeconds)).toEqual({
+      expect(plugin.mapResponse(validBody(), maxAllowedLifetimeSeconds)).toEqual({
         tokenValue: 'my-jwt-token'
       })
     })
 
     it('returns undefined for invalid JSON', () => {
-      expect(
-        plugin.mapResponse('not json', maxLifetimeSeconds, expirationWindowSeconds)
-      ).toBeUndefined()
+      expect(plugin.mapResponse('not json', maxAllowedLifetimeSeconds)).toBeUndefined()
     })
 
     it('returns undefined when access_token is missing', () => {
       expect(
         plugin.mapResponse(
           JSON.stringify({ expires_in: 3600, scope: 'accounts', token_type: 'bearer' }),
-          maxLifetimeSeconds,
-          expirationWindowSeconds
+          maxAllowedLifetimeSeconds
         )
       ).toBeUndefined()
     })
@@ -83,8 +79,7 @@ describe('createObThirdPartyTokenPlugin', () => {
       expect(
         plugin.mapResponse(
           JSON.stringify({ access_token: 'tok', expires_in: 3600, scope: 'accounts' }),
-          maxLifetimeSeconds,
-          expirationWindowSeconds
+          maxAllowedLifetimeSeconds
         )
       ).toBeUndefined()
     })
@@ -93,45 +88,20 @@ describe('createObThirdPartyTokenPlugin', () => {
       expect(
         plugin.mapResponse(
           JSON.stringify({ access_token: 'tok', expires_in: 3600, token_type: 'bearer' }),
-          maxLifetimeSeconds,
-          expirationWindowSeconds
+          maxAllowedLifetimeSeconds
         )
       ).toBeUndefined()
     })
 
-    it('returns undefined when expires_in is not greater than expirationWindowSeconds', () => {
+    it('returns undefined when expires_in is below maxAllowedLifetimeSeconds', () => {
       expect(
-        plugin.mapResponse(validBody(0), maxLifetimeSeconds, expirationWindowSeconds)
+        plugin.mapResponse(validBody(maxAllowedLifetimeSeconds - 1), maxAllowedLifetimeSeconds)
       ).toBeUndefined()
     })
 
-    it('returns undefined when expires_in equals expirationWindowSeconds', () => {
+    it('returns token when expires_in equals maxAllowedLifetimeSeconds', () => {
       expect(
-        plugin.mapResponse(
-          validBody(expirationWindowSeconds),
-          maxLifetimeSeconds,
-          expirationWindowSeconds
-        )
-      ).toBeUndefined()
-    })
-
-    it('returns undefined when expires_in is below maxLifetimeSeconds', () => {
-      expect(
-        plugin.mapResponse(
-          validBody(maxLifetimeSeconds - 1),
-          maxLifetimeSeconds,
-          expirationWindowSeconds
-        )
-      ).toBeUndefined()
-    })
-
-    it('returns token when expires_in equals maxLifetimeSeconds', () => {
-      expect(
-        plugin.mapResponse(
-          validBody(maxLifetimeSeconds),
-          maxLifetimeSeconds,
-          expirationWindowSeconds
-        )
+        plugin.mapResponse(validBody(maxAllowedLifetimeSeconds), maxAllowedLifetimeSeconds)
       ).toEqual({ tokenValue: 'my-jwt-token' })
     })
   })
