@@ -1,4 +1,4 @@
-# Thirdparty Async Token — Operation & Design
+# Async Token — Operation & Design
 
 ## Purpose
 
@@ -24,7 +24,7 @@ Maintains a continuously valid third-party access token in DynamoDB, refreshed e
                                               ▼
                                     ┌────────────────────┐
                                     │ DynamoDB           │
-                                    │ thirdparty-token-  │
+                                    │ third-party-token- │
                                     │ table              │
                                     └─────────┬──────────┘
                                               │
@@ -93,7 +93,7 @@ The handler calls `updateForAllEnabledProfiles(false)`:
 
 A token is refreshed when any of these are true:
 - No existing token in DynamoDB (`noExistingToken`)
-- Existing token is near expiry (`ttlExpired` — within `expirationWindowSeconds` of TTL)
+- Existing token is near expiry (`ttlExpired` — within `tokenExpirationWindowSeconds` of TTL)
 - Force update requested (`tokenForceUpdate` — true on bootstrap, false on scheduled runs)
 
 ---
@@ -111,11 +111,12 @@ Config is read from SSM at two levels:
 
 Contains:
 
-| Key                            | Description                                                |
-|--------------------------------|------------------------------------------------------------|
-| `enabledProfiles`              | Pipe-separated list of profile prefixes (e.g. `STUB\|UAT`) |
-| `maxAllowedLifetimeSeconds`    | Maximum token lifetime                                     |
-| `tokenExpirationWindowSeconds` | How early to refresh before expiry                         |
+| Key                              | Description                                                                 |
+|----------------------------------|-----------------------------------------------------------------------------|
+| `enabledProfiles`                | Pipe-separated list of profile prefixes (e.g. `STUB\|UAT`)                  |
+| `tokenMaxAllowedLifetimeSeconds` | Token lifetime; stored directly as the item `ttl` (must be `<= expires_in`) |
+| `tokenExpirationWindowSeconds`   | Lead time before expiry when the token becomes eligible for replacement     |
+| `tokenExpirationPadSeconds`      | End-of-life buffer; consumers stop serving this many seconds before expiry  |
 
 **Profile-level config** (read per-profile on each invocation):
 ```
@@ -128,14 +129,13 @@ Contains plugin-specific secrets (e.g. `client-id`, `client-secret`, `endpoint-u
 
 After loading SSM values, `createThirdPartyTokenPluginConfig` computes and exposes:
 
-| Field                     | Description                                                                  |
-|---------------------------|------------------------------------------------------------------------------|
-| `enabledProfiles`         | Parsed array of profile prefixes from the pipe-separated SSM value           |
-| `maxLifetimeSeconds`      | `maxAllowedLifetimeSeconds` from SSM                                         |
-| `expirationWindowSeconds` | `tokenExpirationWindowSeconds` from SSM                                      |
-| `itemTtlSeconds`          | `maxLifetimeSeconds - expirationWindowSeconds` — the TTL written to DynamoDB |
-| `pluginName`              | Value of `THIRDPARTY_TOKEN_PLUGIN_NAME`                                      |
-| `tokenItemSuffix`         | `-token-${pluginName}` — appended to `tokenPrefix` to form the DynamoDB key  |
+| Field                            | Description                                                        |
+|----------------------------------|--------------------------------------------------------------------|
+| `enabledProfiles`                | Parsed array of profile prefixes from the pipe-separated SSM value |
+| `pluginName`                     | Value of `THIRDPARTY_TOKEN_PLUGIN_NAME`                            |
+| `tokenMaxAllowedLifetimeSeconds` | Token lifetime; written as the item `ttl`                          |
+| `tokenExpirationWindowSeconds`   | Lead time before expiry for replacement eligibility                |
+| `tokenExpirationPadSeconds`      | Consumer safety buffer; copied onto the item as `pad`              |
 
 ### Environment Variables
 
@@ -150,15 +150,17 @@ After loading SSM values, `createThirdPartyTokenPluginConfig` computes and expos
 
 ## DynamoDB Token Storage
 
-Table: `${ParentStackName}-thirdparty-token-table`
+Table: `${ParentStackName}-third-party-token-table`
 
-| Field        | Type                   | Description                                             |
-|--------------|------------------------|---------------------------------------------------------|
-| `id`         | String (partition key) | Token name: `${tokenPrefix}-token-${pluginName}`        |
-| `tokenValue` | String                 | The cached access token                                 |
-| `ttl`        | Number                 | Unix epoch seconds — DynamoDB TTL for automatic cleanup |
+| Field        | Type                   | Description                                                                         |
+|--------------|------------------------|-------------------------------------------------------------------------------------|
+| `id`         | String (partition key) | Token name: `${tokenPrefix}-token-${pluginName}`                                    |
+| `tokenValue` | String                 | The cached access token                                                             |
+| `ttl`        | Number                 | Real expiry epoch seconds; DynamoDB auto-deletes the item at `ttl`                  |
+| `pad`        | Number                 | `tokenExpirationPadSeconds` copied onto the item so consumers need no plugin config |
 
-TTL is calculated as: `now + itemTtlSeconds` where `itemTtlSeconds = maxLifetimeSeconds - expirationWindowSeconds`.
+`ttl = now + tokenMaxAllowedLifetimeSeconds` — the token's real expiry. The replacement
+window and consumer pad are applied as offsets from `ttl` at read time, never baked into it.
 
 ---
 
@@ -172,9 +174,9 @@ const token = await retrieveToken(configProfileName) // e.g ConfigProfileName: '
 
 Returns:
 - The token value if it exists and is safe to use
-- `undefined` if no token exists or the token is within 30 seconds of its TTL (`TOKEN_EXPIRY_PAD_SECONDS`)
+- `undefined` if no token exists or `now >= ttl - pad` (within the item's `pad` of expiry)
 
-Note: the consumer uses `isThirdPartyTokenExpired` (with a 30s pad) rather than `isThirdPartyTokenNearExpiration` — consumers should use the token until the last safe moment, not trigger a refresh.
+Note: the consumer uses `isThirdPartyTokenExpired`, which reads the `pad` stored on the item, so it needs no plugin config. It deliberately does not use `isThirdPartyTokenNearExpiration` — consumers serve the token to the last safe moment rather than triggering replacement.
 
 The consumer does **not** refresh tokens — it only reads. The async lambda is solely responsible for keeping tokens fresh.
 
@@ -195,27 +197,29 @@ The consumer does **not** refresh tokens — it only reads. The async lambda is 
 
 ---
 
-## Expiry & Refresh Timing
+## Expiry & Replacement Timing
 
 ```
-|◀────────────────── maxLifetimeSeconds (e.g. 3600s) ────────────────────▶|
-|                                                                         |
-|◀── itemTtlSeconds (e.g. 3300s) ────▶|◀── expirationWindow (e.g. 300s) ─▶|
-|                                     |                                   |
-token saved                     refresh triggered                    token expires
-                                (near expiry)                        (DynamoDB TTL)
+0                                        ttl - window      ttl - pad  ttl
+|◀───────────── usable serving ─────────▶|                     |      |
+|                                        |◀─────── window ─────▶|      |
+|                                        |                     |◀ pad ▶|
+token saved                        replacement            consumers    expiry
+                                   eligible                stop serving (DynamoDB delete)
+
+e.g. lifetime 3600s, window 300s, pad 30s → replaceable at 3300s, consumers stop at 3570s, expiry 3600s
 ```
 
-- Token is saved with `ttl = now + itemTtlSeconds`
-- On next invocation, if `now > ttl - expirationWindowSeconds` → refresh
-- If refresh fails, the token remains valid until DynamoDB TTL removes it
-- If refresh fails AND token has passed its TTL → token is cleared immediately
+- Item stored with `ttl = now + tokenMaxAllowedLifetimeSeconds` (real expiry) and `pad = tokenExpirationPadSeconds`
+- Producer: on a scheduled run, if `now >= ttl - tokenExpirationWindowSeconds` → request a replacement token
+- Consumer: serves the token until `now >= ttl - pad`, then returns `undefined`
+- If replacement fails, the token stays valid until `ttl`; if `ttl` has passed, the item is cleared immediately
 
 ---
 
 ## Infrastructure
 
-### Resources (in `thirdparty-token.yaml`)
+### Resources (in `third-party-token.yaml`)
 
 | Resource                                        | Type             | Purpose                 |
 |-------------------------------------------------|------------------|-------------------------|
@@ -243,9 +247,9 @@ The lambda runs in protected subnets with access to:
 
 ```
 src/
-  thirdparty-async-token/
+  async-token/
     lambda/
-      handler/thirdparty-async-token-lambda.ts   ← entry point, bootstrap, handler
+      handler/async-token-lambda.ts              ← entry point, bootstrap, handler
       service/token-update-service.ts            ← token refresh logic + HTTP calls
       util/plugin-loader.ts                      ← reads THIRDPARTY_TOKEN_PLUGIN_NAME, imports /opt/nodejs/${pluginName}.mjs, calls createPlugin(), caches the result
     plugin-api/

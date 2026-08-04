@@ -2,7 +2,7 @@
 
 ## Problem
 
-The thirdparty token implementation has two failure surfaces that need runtime alerting:
+The third-party token implementation has two failure surfaces that need runtime alerting:
 
 1. **Async Token Lambda** — fails to refresh a token for a specific profile prefix. We want Slack to indicate which prefix failed without requiring manual log inspection.
 2. **Consumer Service** — a consumer Lambda attempts to retrieve a token and finds it missing or expired. This means the downstream third-party call will fail or be skipped.
@@ -38,13 +38,13 @@ Each routes to a separate Slack channel via `AWS::Chatbot::SlackChannelConfigura
 
 The enricher Lambda (`BuildNotificationEnricherFunction`) only enriches **CodePipeline** events — not CloudWatch alarm notifications. It checks for `detailType == "CodePipeline Pipeline Execution State Change"` and ignores all other event types. CloudWatch alarm notifications pass directly to AWS Chatbot unenriched.
 
-**Current alarm** (`CanaryThirdPartyAsyncTokenFunctionErrorsAlarm` in `deploy/thirdparty-token.yaml`):
+**Current alarm** (`CanaryThirdPartyAsyncTokenFunctionErrorsAlarm` in `../../deploy/third-party-token.yaml`):
 - Metric: `AWS/Lambda` → `Errors` on `ThirdPartyAsyncTokenFunction`
 - Period: 60s, Threshold: ≥ 1
 - Routes to: `CriticalAlertsTopicArn`
 - Purpose: canary deployment gate only — not used for runtime alerting
 
-There are currently no dedicated runtime alarms for the thirdparty token implementation. This RFC proposes adding some and lists options.
+There are currently no dedicated runtime alarms for the third-party token implementation. This RFC proposes adding some and lists options.
 
 **What Slack shows (via AWS Chatbot, fixed format):**
 ```
@@ -77,14 +77,7 @@ Additionally, the nested stack cannot hardcode profile names into alarm resource
 
 ### Async Token Lambda
 
-The `ThirdPartyAsyncTokenFunction` processes all enabled profiles in parallel. Individual profile failures are caught and logged, then aggregated:
-
-```typescript
-// In handler - updateForAllEnabledProfiles():
-logger.error(`Failed for token prefix: ${tokenPrefix} - ${message}`)
-// ...after all profiles complete:
-throw new Error(`Failed for token prefixes: ${failures.join(', ')}`)
-```
+The `ThirdPartyAsyncTokenFunction` processes all enabled profiles in parallel. Individual profile failures are caught and logged, then aggregated.
 
 The thrown error causes the Lambda invocation to fail → `Errors` metric increments → alarm fires.
 
@@ -96,15 +89,7 @@ Consumer Lambdas call `retrieveToken(profileName)` which returns `undefined` whe
 - No token exists in DynamoDB for the requested profile
 - The token's TTL has expired
 
-Currently, these cases are logged as warnings but no metric is emitted and no alarm fires:
-
-```typescript
-// Token missing:
-logger.info(`ProfileName ${configProfileName} - existing cached token: false, ttl expired: false`)
-
-// Token expired:
-logger.warn(`Cannot use current token ${tokenName} as it has expired ${expiredDateTime}`)
-```
+Currently, these cases are logged as warnings but no metric is emitted and no alarm fires.
 
 Consumer failures are a lagging indicator — they confirm the async Lambda has been failing long enough for tokens to expire. Alerting on both gives early warning (async Lambda failure) and impact confirmation (consumer unable to retrieve token).
 
@@ -207,7 +192,7 @@ Two custom metrics, one alarm each:
 Use CloudWatch Log Metric Filters to extract metrics directly from existing log output — no code changes required.
 
 **Async Token Lambda:**
-- **Filter pattern**: `"Failed for token prefix"` on the Lambda's log group
+- **Filter pattern**: `"Failed to update token for profile"` on the Lambda's log group
 - **Metric**: `TokenUpdateFailed` (count)
 - **Alarm**: Fires when filter matches ≥ 1 in a period
 - Lives in the nested stack (owns the log group)
@@ -244,14 +229,14 @@ The canary alarm remains solely as the deployment gate.
 
 **Future enhancement: Option 3** (Enricher Lambda) is the natural evolution. It's the only option that fully solves the original problem (prefix context in Slack) and can be layered on top of Option 4 — subscribing to the same alarm's SNS topic and enriching the notification. However, it requires infrastructure outside the nested stack (separate Lambda, IAM, Slack webhook), has ownership ambiguity (CRI team vs platform team), and bypasses the existing build-notifications pipeline. If log inspection proves too slow in practice, this should be proposed as a platform-level capability rather than built per-CRI.
 
-**Option 2 is viable if** profiles where standardized across teams and the team accepts the manual maintenance cost of N × 2 alarms per plugin instance — but it cannot live in the nested stack and multiplies quickly with multiple plugins or during third-party migrations.
+**Option 2 is viable if** profiles were standardized across teams and the team accepts the manual maintenance cost of N × 2 alarms per plugin instance — but it cannot live in the nested stack and multiplies quickly with multiple plugins or during third-party migrations.
 
 ## Current Logging (already in place)
 
 **Async Token Lambda:**
 ```typescript
 // Per-profile failure (in handler catch block):
-logger.error(`Failed for token prefix: ${tokenPrefix} - ${message}`)
+logger.error('Failed to update token for profile', { errorMessage: message, tokenPrefix })
 
 // Aggregated error (thrown after all profiles complete):
 throw new Error(`Failed for token prefixes: ${failures.join(', ')}`)
@@ -260,16 +245,16 @@ throw new Error(`Failed for token prefixes: ${failures.join(', ')}`)
 **Consumer Service:**
 ```typescript
 // Token missing:
-logger.info(`ProfileName ${configProfileName} - existing cached token: false, ttl expired: false`)
+logger.info('Token retrieval result', { configProfileName, retrievalStatus: 'NOT_FOUND' })
 
 // Token expired:
-logger.warn(`Cannot use current token ${tokenName} as it has expired ${expiredDateTime}`)
+logger.warn('Cannot use current token as it has expired', { tokenName, expiredDateTime })
 ```
 
 These structured log entries are queryable via CloudWatch Logs Insights:
 ```
 fields @timestamp, @message
-| filter @message like /Failed for token prefix/ or @message like /Cannot use current token/
+| filter @message like /Failed to update token for profile/ or @message like /Cannot use current token/
 | sort @timestamp desc
 | limit 10
 ```
@@ -278,14 +263,14 @@ fields @timestamp, @message
 
 ### Async Token Lambda
 
-Emit in `thirdparty-async-token-lambda.ts` using the existing `@govuk-one-login/cri-metrics` package:
+Emit in `async-token-lambda.ts` using the existing `@govuk-one-login/cri-metrics` package:
 
 ```typescript
 // In the catch block of updateForAllEnabledProfiles:
 metrics.addMetric('TokenUpdateFailed', MetricUnit.Count, failures.length)
 ```
 
-**Alarm**: Lives in `deploy/thirdparty-token.yaml` alongside the existing canary alarm. Any CRI using the nested stack gets this automatically.
+**Alarm**: Lives in `../../deploy/third-party-token.yaml` alongside the existing canary alarm. Any CRI using the nested stack gets this automatically.
 
 ### Consumer Service
 
@@ -296,7 +281,7 @@ Emit in `token-retrieval.ts` when returning `undefined`:
 metrics.addMetric('TokenRetrievalUnavailable', MetricUnit.Count, 1)
 ```
 
-The metric emission is baked into the shared consumer library (`thirdparty-async-token-consumer`), so any Lambda using `retrieveToken` emits it automatically.
+The metric emission is baked into the shared consumer library (`src/async-token/consumer/`), so any Lambda using `retrieveToken` emits it automatically.
 
 **Alarm**: Must be defined in the parent stack (or wherever the consuming Lambda is defined) — the nested stack does not own consumer Lambda log groups or metric namespaces. The parent stack references the consumer Lambda's metric namespace and creates the alarm.
 
@@ -305,7 +290,7 @@ The metric emission is baked into the shared consumer library (`thirdparty-async
 | Component                          | Where it lives                         | Who owns it                   |
 |------------------------------------|----------------------------------------|-------------------------------|
 | `TokenUpdateFailed` metric         | Async token Lambda (nested stack code) | Nested stack                  |
-| `TokenUpdateFailed` alarm          | `deploy/thirdparty-token.yaml`         | Nested stack                  |
+| `TokenUpdateFailed` alarm          | `../../deploy/third-party-token.yaml`  | Nested stack                  |
 | `TokenRetrievalUnavailable` metric | Consumer library code                  | Shared library (auto-emitted) |
 | `TokenRetrievalUnavailable` alarm  | Parent stack template                  | Parent stack (per consumer)   |
 

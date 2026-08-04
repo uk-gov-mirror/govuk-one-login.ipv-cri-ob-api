@@ -1,6 +1,6 @@
-# Plugin Layer Authoring Guide.md
+# Plugin Layer Authoring Guide
 
-Step-by-step guide for implementing a plugin for a new consumer of the `thirdparty-token` nested stack.
+Step-by-step guide for implementing a plugin for a new consumer of the `third-party-token` nested stack.
 
 ---
 
@@ -23,7 +23,7 @@ import { z } from 'zod'
 const PLUGIN_NAME = 'my-token-plugin'
 
 // Validate the SSM profile config your plugin expects
-const tokenProfileSSMSchema = z.object({
+const tokenProfileSsmSchema = z.object({
   'client-id': z.string().min(1),
   'client-secret': z.string().min(1),
   'endpoint-url': z.url()
@@ -42,13 +42,13 @@ const createMyThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
   // Called once per profile on each scheduled invocation before buildTokenRequest.
   // Validates the raw SSM profile config and throws if required fields are missing.
   // Throwing here prevents a bad config from reaching the HTTP call.
-  parseConfigProfile: (config) => tokenProfileSSMSchema.parse(config),
+  parseConfigProfile: (config) => tokenProfileSsmSchema.parse(config),
 
   // Constructs the HTTP request sent to the third-party token endpoint.
   // Receives the validated profile config via input.config (already parsed by parseConfigProfile).
   // Must return endpointUrl, headers, body, and timeoutMs.
   buildTokenRequest: (input: PluginInput): ThirdPartyTokenRequestConfig => {
-    const config = tokenProfileSSMSchema.parse(input.config)
+    const config = tokenProfileSsmSchema.parse(input.config)
     return {
       endpointUrl: config['endpoint-url'],
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -61,12 +61,26 @@ const createMyThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
   },
 
   // Parses the raw response body string from the token endpoint into { tokenValue }.
-  // Return undefined on any parse failure — the update service treats this as a failed refresh
-  // and will preserve the existing token (or clear it if already expired).
-  mapResponse: (responseBody): ThirdPartyTokenResponse | undefined => {
+  // Also receives maxLifetimeSeconds and expirationWindowSeconds (from the plugin config) so
+  // it can reject a token whose advertised lifetime (e.g. expires_in) is too short to be useful.
+  // Return undefined on any parse/validation failure — the update service treats this as a failed
+  // refresh and will preserve the existing token (or clear it if already expired).
+  mapResponse: (
+    responseBody,
+    maxLifetimeSeconds,
+    expirationWindowSeconds
+  ): ThirdPartyTokenResponse | undefined => {
     try {
-      const parsed = JSON.parse(responseBody) as { access_token?: string }
+      const parsed = JSON.parse(responseBody) as { access_token?: string; expires_in?: number }
       if (!parsed.access_token) return undefined
+      // Reject tokens that won't live at least the configured lifetime / past the refresh window
+      if (
+        parsed.expires_in === undefined ||
+        parsed.expires_in < maxLifetimeSeconds ||
+        parsed.expires_in <= expirationWindowSeconds
+      ) {
+        return undefined
+      }
       return { tokenValue: parsed.access_token }
     } catch {
       return undefined
@@ -89,14 +103,14 @@ export const createPlugin = createMyThirdPartyTokenPlugin
 
 ### ThirdPartyTokenPlugin contract
 
-| Method / field       | Purpose                                                                                  |
-|----------------------|------------------------------------------------------------------------------------------|
-| `name`               | Must match `THIRDPARTY_TOKEN_PLUGIN_NAME` exactly                                        |
-| `alertStatusCodes`   | HTTP status codes that fire an alert metric and must never be retried                    |
-| `parseConfigProfile` | Validates the SSM profile config — throw (e.g. zod) if required fields are missing      |
-| `buildTokenRequest`  | Constructs the HTTP request (URL, headers, body, timeout) from the validated profile config |
-| `mapResponse`        | Parses the raw response body string → `{ tokenValue }`, returns `undefined` on failure  |
-| `isTokenValid`       | Final validation of the extracted token value before it is stored                       |
+| Method / field       | Purpose                                                                                                                                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `name`               | Must match `THIRDPARTY_TOKEN_PLUGIN_NAME` exactly                                                                                                                                                          |
+| `alertStatusCodes`   | HTTP status codes that fire an alert metric and must never be retried                                                                                                                                      |
+| `parseConfigProfile` | Validates the SSM profile config — throw (e.g. zod) if required fields are missing                                                                                                                         |
+| `buildTokenRequest`  | Constructs the HTTP request (URL, headers, body, timeout) from the validated profile config                                                                                                                |
+| `mapResponse`        | Parses the raw response body string → `{ tokenValue }`; also receives `maxLifetimeSeconds` and `expirationWindowSeconds` to validate the token's lifetime. Returns `undefined` on parse/validation failure |
+| `isTokenValid`       | Final validation of the extracted token value before it is stored                                                                                                                                          |
 
 ---
 
@@ -155,7 +169,7 @@ Pass the layer ARN and plugin name as parameters to the `ThirdPartyToken` nested
 ThirdPartyToken:
   Type: AWS::Serverless::Application
   Properties:
-    Location: ./thirdparty-token.yaml   # or SAR ApplicationId once published
+    Location: ./third-party-token.yaml   # or SAR ApplicationId once published
     Parameters:
       ThirdPartyTokenPluginLayerArn: !Ref MyTokenPluginLayer
       ThirdPartyTokenPluginName: my-token-plugin

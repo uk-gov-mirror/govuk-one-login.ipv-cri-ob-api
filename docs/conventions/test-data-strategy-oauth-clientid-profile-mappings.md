@@ -12,15 +12,26 @@ We are using a namespace-based approach to manage the profiles for each endpoint
 
 ### Config
 
-The parameter controlling the enabling of profiles lives under:
-`/{stack-name}/{namespace}/config/enabledProfiles`
+Plugin-level config lives under `/{stack-name}/{namespace}/config/{param}`. For the
+`ob-token-plugin` namespace the loader (`createThirdPartyTokenPluginConfig`) requires:
 
-where `enabledProfiles` is a pipe-delimited list of active profiles, e.g. `STUB|UAT|LIVE`.
+| Param                            | Example           | Description                                                             |
+|----------------------------------|-------------------|-------------------------------------------------------------------------|
+| `enabledProfiles`                | `STUB\|UAT\|LIVE` | Pipe-delimited list of active profiles                                  |
+| `tokenMaxAllowedLifetimeSeconds` | `3600`            | Token lifetime; stored as the item `ttl` (must be `<= expires_in`)      |
+| `tokenExpirationWindowSeconds`   | `300`             | Lead time before expiry when the token becomes eligible for replacement |
+| `tokenExpirationPadSeconds`      | `30`              | Consumer buffer; consumers stop serving this many seconds before expiry |
 
 Example using namespace `ob-token-plugin`:
 ```
 /{stack-name}/ob-token-plugin/config/enabledProfiles
+/{stack-name}/ob-token-plugin/config/tokenMaxAllowedLifetimeSeconds
+/{stack-name}/ob-token-plugin/config/tokenExpirationWindowSeconds
+/{stack-name}/ob-token-plugin/config/tokenExpirationPadSeconds
 ```
+
+All four are read once at cold start; missing or out-of-bounds values fail config
+validation and trigger a canary rollback.
 
 ### Profiles
 

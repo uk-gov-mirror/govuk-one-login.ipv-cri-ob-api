@@ -1,11 +1,11 @@
-# Thirdparty Token Stack — Library & Plugin Design
+# Third Party Token Stack — Library & Plugin Design
 
 ## Problem
 
 We want to:
-1. **Decouple** the thirdparty-token nested stack from any specific plugin implementation
+1. **Decouple** the third-party-token nested stack from any specific plugin implementation
 2. Allow consumers to provide **different plugins** (not just `ob-token-plugin`) without code changes to the nested stack
-3. Enable **publishing** the thirdparty-token stack as a reusable library for other CRIs
+3. Enable **publishing** the third-party-token stack as a reusable library for other CRIs
 4. Keep the **same `sam build` + `sam deploy` workflow** we use today
 
 ---
@@ -44,7 +44,7 @@ Parent stack (template.yaml)
 │                       │ !Ref (ARN)                                       │
 │                       ▼                                                  │
 │  ┌─────────────────────────────────────────────────────────────────────┐ │
-│  │  ThirdPartyToken (nested stack — thirdparty-token.yaml)             │ │
+│  │  ThirdPartyToken (nested stack — third-party-token.yaml)            │ │
 │  │                                                                     │ │
 │  │  Parameters:                                                        │ │
 │  │    ThirdPartyTokenPluginLayerArn ───────────────────────┐           │ │
@@ -64,7 +64,7 @@ Parent stack (template.yaml)
 │  │  │  Code:                                             │             │ │
 │  │  │    util/plugin-loader.ts → import(/opt/nodejs/...) │             │ │
 │  │  │    token-update-service.ts                         │             │ │
-│  │  │    handler/thirdparty-async-token-lambda.ts        │             │ │
+│  │  │    handler/async-token-lambda.ts                   │             │ │
 │  │  └────────────────────────────────────────────────────┘             │ │
 │  │                                                                     │ │
 │  │  ThirdPartyTokenTable (DynamoDB)                                    │ │
@@ -88,7 +88,7 @@ export const createPlugin = (): ThirdPartyTokenPlugin => ({
   alertStatusCodes: [401, 403],
   buildTokenRequest: (input) => { /* ... */ },
   isTokenValid: (response) => { /* ... */ },
-  mapResponse: (body) => { /* ... */ },
+  mapResponse: (body, maxLifetimeSeconds, expirationWindowSeconds) => { /* ... */ },
   parseConfigProfile: (config) => { /* ... */ }
 })
 ```
@@ -107,7 +107,7 @@ const createObThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
   alertStatusCodes: [401, 403],
   buildTokenRequest: (input) => { /* ... */ },
   isTokenValid: (response) => { /* ... */ },
-  mapResponse: (body) => { /* ... */ },
+  mapResponse: (body, maxLifetimeSeconds, expirationWindowSeconds) => { /* ... */ },
   parseConfigProfile: (config) => { /* ... */ }
 })
 
@@ -137,6 +137,7 @@ The plugin loader derives the module path from `THIRDPARTY_TOKEN_PLUGIN_NAME`:
 import type { ThirdPartyTokenPlugin } from '@src/async-token/plugin-api/token-plugin'
 
 import { requireEnv } from '@common/util/env'
+import { logger } from '@govuk-one-login/cri-logger'
 
 interface PluginModule {
   createPlugin: () => ThirdPartyTokenPlugin
@@ -153,11 +154,17 @@ export const loadPlugin = async (): Promise<ThirdPartyTokenPlugin> => {
   const mod = (await import(modulePath)) as PluginModule
   cached = mod.createPlugin()
 
+  if (cached.name !== pluginName) {
+    throw new Error(`Plugin name mismatch: expected "${pluginName}", got "${cached.name}"`)
+  }
+
+  logger.info('Loaded plugin', { pluginName: cached.name })
+
   return cached
 }
 ```
 
-If the dynamic import fails or `createPlugin` is not exported, the error propagates at cold start — triggering the canary alarm and rollback. No try/catch is intentional: silent failure is worse than a loud crash.
+If the dynamic import fails or `createPlugin` is not exported, the error propagates at cold start — triggering the canary alarm and rollback. No try/catch is intentional: silent failure is worse than a loud crash. As a sanity check, the loader also verifies the plugin's own `name` matches `THIRDPARTY_TOKEN_PLUGIN_NAME` and throws on mismatch (catching a layer/parameter wiring error at bootstrap).
 
 Both the handler and the service use `await loadPlugin()` to obtain the plugin instance (cached after first call).
 
@@ -218,7 +225,7 @@ The layer ARN is passed to the nested stack:
 ThirdPartyToken:
   Type: AWS::Serverless::Application
   Properties:
-    Location: ./thirdparty-token.yaml
+    Location: ./third-party-token.yaml
     Parameters:
       ThirdPartyTokenPluginLayerArn: !Ref ObTokenPluginLayer
 ```
@@ -296,7 +303,7 @@ On canary failure, CodeDeploy rolls back:
 ### Unit Testing — Plugin Loader
 
 ```typescript
-// test/unit/async-token/lambda/plugin-loader.test.ts
+// test/unit/async-token/lambda/util/plugin-loader.test.ts
 describe('loadPlugin', () => {
   it('loads plugin from layer path derived from THIRDPARTY_TOKEN_PLUGIN_NAME', async () => {
     vi.stubEnv('THIRDPARTY_TOKEN_PLUGIN_NAME', 'test-plugin')
@@ -337,8 +344,10 @@ If either throws → canary alarm → CodeDeploy rolls back. No additional deplo
 
 ### Layer Content Validation (CI)
 
+> **Recommended, not yet implemented.** A test that imports the built layer artifact and asserts the plugin contract would catch a broken layer build in CI (before deploy), complementing the runtime bootstrap validation. Example:
+
 ```typescript
-// test/unit/layer-content.test.ts
+// test/unit/layer-content.test.ts (recommended — not yet present)
 describe('ObTokenPluginLayer build output', () => {
   it('exports createPlugin conforming to ThirdPartyTokenPlugin contract', async () => {
     const mod = await import('../../.aws-sam/build/ObTokenPluginLayer/nodejs/ob-token-plugin.mjs')
@@ -400,7 +409,7 @@ describe('ObTokenPluginLayer build output', () => {
 Publish the token stack code as an npm package. Consumers write shim files that import the library + their plugin, and esbuild bundles everything at build time.
 
 **Why the layer approach is preferred:**
-- Shims require each consumer to manage entry points in their `thirdparty-token.yaml`
+- Shims require each consumer to manage entry points in their `third-party-token.yaml`
 - SAM `Metadata.BuildProperties.EntryPoints` doesn't support `!Ref` — can't parametrise
 - The layer approach keeps the nested stack truly self-contained; consumers only pass an ARN
 - Layer enables independent deployment of plugin fixes without redeploying the lambda code
@@ -409,17 +418,17 @@ Publish the token stack code as an npm package. Consumers write shim files that 
 
 ### SAR (Serverless Application Repository)
 
-The intended future mechanism for publishing the thirdparty-token stack. With the plugin decoupled via `ThirdPartyTokenPluginLayerArn`, SAR now works — consumers reference the published stack and pass their own layer ARN as a parameter, exactly like `di-ipv-cri-oauth-common` today.
+The intended future mechanism for publishing the third-party-token stack. With the plugin decoupled via `ThirdPartyTokenPluginLayerArn`, SAR now works — consumers reference the published stack and pass their own layer ARN as a parameter, exactly like `di-ipv-cri-oauth-common` today.
 
-The SAR artifact contains only the nested stack template and lambda code (including the plugin loader). No plugin code is included — that lives entirely in the consumer's layer. The only change from the current setup is where `thirdparty-token.yaml` is referenced from:
+The SAR artifact contains only the nested stack template and lambda code (including the plugin loader). No plugin code is included — that lives entirely in the consumer's layer. The only change from the current setup is where `third-party-token.yaml` is referenced from:
 
 ```yaml
 # Current (local)
-Location: ./thirdparty-token.yaml
+Location: ./third-party-token.yaml
 
 # Future (SAR)
 Location:
-  ApplicationId: arn:aws:serverlessrepo:eu-west-2:...:applications/thirdparty-token
+  ApplicationId: arn:aws:serverlessrepo:eu-west-2:...:applications/third-party-token
   SemanticVersion: 1.0.0
 ```
 
@@ -429,7 +438,7 @@ This was out of scope for the initial implementation due to SAR publishing setup
 
 ## Reusability for Other CRIs
 
-Once the thirdparty-token stack is published to SAR, another CRI adopts it by:
+Once the third-party-token stack is published to SAR, another CRI adopts it by:
 
 1. Creating their plugin implementing `ThirdPartyTokenPlugin` with `export const createPlugin`
 2. Building it as a layer in their parent stack (filename must match the plugin name exactly)
@@ -449,7 +458,7 @@ ThirdPartyToken:
   Type: AWS::Serverless::Application
   Properties:
     Location:
-      ApplicationId: arn:aws:serverlessrepo:eu-west-2:...:applications/thirdparty-token
+      ApplicationId: arn:aws:serverlessrepo:eu-west-2:...:applications/third-party-token
       SemanticVersion: 1.0.0
     Parameters:
       ThirdPartyTokenPluginLayerArn: !Ref MyTokenPluginLayer
@@ -486,7 +495,7 @@ The items below describe the intended final state of this design — kept here s
 - Depends on `../../../src/async-token/common/`
 
 ### Publish to SAR
-- Package the nested stack (`deploy/thirdparty-token.yaml` + lambda code at `../../../src/async-token/lambda/` including plugin-loader and service) for SAR
+- Package the nested stack (`../../../deploy/third-party-token.yaml` + lambda code at `../../../src/async-token/lambda/` including plugin-loader and service) for SAR
 - Lambda bundle includes `../../../src/async-token/common/` as a dependency
 - Set up versioning and CI pipeline for SAR publishing
 - Consumers reference via `ApplicationId` + `SemanticVersion` and provide their own plugin layer
