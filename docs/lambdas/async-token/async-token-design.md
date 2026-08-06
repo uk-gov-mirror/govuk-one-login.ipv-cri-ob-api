@@ -15,7 +15,8 @@ Maintains a continuously valid third-party access token in DynamoDB, refreshed e
                                     │  profile secrets)   │
                                     └─────────┬───────────┘
                                               │
-┌──────────────┐    every 1 min    ┌──────────▼───────────┐    POST      ┌─────────────────┐
+                                              ▼
+┌──────────────┐    every 1 min    ┌──────────────────────┐    POST      ┌─────────────────┐
 │  EventBridge │──────────────────▶│ ThirdPartyAsync      │─────────────▶│  Third-Party    │
 │  Cron Rule   │                   │ TokenFunction        │◀─────────────│  Token Endpoint │
 └──────────────┘                   └──────────┬───────────┘  response    └─────────────────┘
@@ -89,16 +90,22 @@ The handler calls `updateForAllEnabledProfiles(false)`:
     └─ Return failure message (no throw — individual profile failure is caught by handler)
 ```
 
-### Update Triggers
-
-A token is refreshed when any of these are true:
-- No existing token in DynamoDB (`noExistingToken`)
-- Existing token is near expiry (`ttlExpired` — within `tokenExpirationWindowSeconds` of TTL)
-- Force update requested (`tokenForceUpdate` — true on bootstrap, false on scheduled runs)
-
 ---
 
 ## Configuration
+
+### Environment Variables
+
+Set by CloudFormation at deploy time, these wire the Lambda to its plugin, config, and storage — enabling the same nested stack to serve any plugin without code changes.
+
+| Variable                                  | Source                   | Purpose                                                             |
+|-------------------------------------------|--------------------------|---------------------------------------------------------------------|
+| `THIRDPARTY_TOKEN_PLUGIN_NAME`            | CloudFormation parameter | Plugin name — used to derive layer module path and SSM config paths |
+| `THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT` | CloudFormation           | Root SSM path prefix                                                |
+| `THIRDPARTY_TOKEN_DYNAMO_TABLE_NAME`      | CloudFormation           | DynamoDB table for cached tokens                                    |
+| `THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN`       | CloudFormation           | Forces canary deployment on layer updates                           |
+
+---
 
 ### SSM Parameters
 
@@ -106,7 +113,7 @@ Config is read from SSM at two levels:
 
 **Plugin-level config** (read once at cold start):
 ```
-/${THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT}/${pluginName}/config
+${THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT}/${pluginName}/config
 ```
 
 Contains:
@@ -125,28 +132,7 @@ Contains:
 
 Contains plugin-specific secrets (e.g. `client-id`, `client-secret`, `endpoint-url`). The plugin's `parseConfigProfile` validates and types this.
 
-### Derived runtime config (`ThirdPartyTokenPluginConfig`)
-
-After loading SSM values, `createThirdPartyTokenPluginConfig` computes and exposes:
-
-| Field                            | Description                                                        |
-|----------------------------------|--------------------------------------------------------------------|
-| `enabledProfiles`                | Parsed array of profile prefixes from the pipe-separated SSM value |
-| `pluginName`                     | Value of `THIRDPARTY_TOKEN_PLUGIN_NAME`                            |
-| `tokenMaxAllowedLifetimeSeconds` | Token lifetime; written as the item `ttl`                          |
-| `tokenExpirationWindowSeconds`   | Lead time before expiry for replacement eligibility                |
-| `tokenExpirationPadSeconds`      | Consumer safety buffer; copied onto the item as `pad`              |
-
-### Environment Variables
-
-| Variable                                  | Source                   | Purpose                                                             |
-|-------------------------------------------|--------------------------|---------------------------------------------------------------------|
-| `THIRDPARTY_TOKEN_PLUGIN_NAME`            | CloudFormation parameter | Plugin name — used to derive layer module path and SSM config paths |
-| `THIRDPARTY_TOKEN_PLUGIN_SSM_CONFIG_ROOT` | CloudFormation           | Root SSM path prefix                                                |
-| `THIRDPARTY_TOKEN_DYNAMO_TABLE_NAME`      | CloudFormation           | DynamoDB table for cached tokens                                    |
-| `THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN`       | CloudFormation           | Forces canary deployment on layer updates                           |
-
----
+`createThirdPartyTokenPluginConfig` parses the SSM values above (plus `pluginName` from `THIRDPARTY_TOKEN_PLUGIN_NAME`) into a typed `ThirdPartyTokenPluginConfig` at cold start.
 
 ## DynamoDB Token Storage
 
@@ -172,38 +158,31 @@ Other lambdas read cached tokens via `retrieveToken`:
 const token = await retrieveToken(configProfileName) // e.g ConfigProfileName: 'LIVE' | 'STUB' | 'UAT'
 ```
 
-Returns:
-- The token value if it exists and is safe to use
-- `undefined` if no token exists or `now >= ttl - pad` (within the item's `pad` of expiry)
-
-Note: the consumer uses `isThirdPartyTokenExpired`, which reads the `pad` stored on the item, so it needs no plugin config. It deliberately does not use `isThirdPartyTokenNearExpiration` — consumers serve the token to the last safe moment rather than triggering replacement.
-
-The consumer does **not** refresh tokens — it only reads. The async lambda is solely responsible for keeping tokens fresh.
+Returns the token value if it exists and `now < ttl - pad`, otherwise `undefined`. The consumer reads the `pad` stored on the item — it needs no plugin config and does not trigger replacement.
 
 ---
 
 ## Error Handling
 
-| Scenario                                  | Behaviour                                                                   |
-|-------------------------------------------|-----------------------------------------------------------------------------|
-| Bootstrap fails (cold start)              | Lambda invocation fails → canary alarm → rollback                           |
-| Single profile fails during scheduled run | Logged, other profiles continue, aggregated error thrown after all complete |
-| All profiles fail                         | Aggregated error thrown → Lambda error metric fires                         |
-| Third-party returns non-200               | Token not updated, existing token preserved (unless expired)                |
-| Third-party returns 401/403               | Alert metric logged (via `alertStatusCodes`)                                |
-| Existing token expired AND refresh fails  | Expired token cleared from DynamoDB to prevent stale usage                  |
-| Network timeout                           | Caught by `AbortSignal.timeout` + body read race                            |
-| Response body read hangs                  | Separate `Promise.race` timeout on `response.text()`                        |
+| Scenario                                   | Behaviour                                                                                 |
+|--------------------------------------------|-------------------------------------------------------------------------------------------|
+| Bootstrap fails (cold start)               | Lambda invocation fails → canary alarm → rollback                                         |
+| Single profile fails during scheduled run  | Logged, other profiles continue, aggregated error thrown after all complete               |
+| All profiles fail                          | Aggregated error thrown → Lambda error metric fires                                       |
+| Third-party returns non-200                | Token not updated, existing token preserved (unless expired)                              |
+| Third-party returns 401/403                | Alert metric logged (via `alertStatusCodes`)                                              |
+| Existing token expired AND refresh fails   | Expired token cleared from DynamoDB to prevent stale usage                                |
+| Network timeout / response body read hangs | Single `AbortSignal.timeout` on `fetch()` covers the entire request (connect + body read) |
 
 ---
 
 ## Expiry & Replacement Timing
 
 ```
-0                                        ttl - window      ttl - pad  ttl
-|◀───────────── usable serving ─────────▶|                     |      |
-|                                        |◀─────── window ─────▶|      |
-|                                        |                     |◀ pad ▶|
+0                                    ttl - window            ttl-pad   ttl
+|◀───────────── usable serving ─────────▶|                      |       |
+|                                        |◀─────── window ─────▶|       |
+|                                        |                      |◀ pad ▶|
 token saved                        replacement            consumers    expiry
                                    eligible                stop serving (DynamoDB delete)
 
@@ -211,9 +190,7 @@ e.g. lifetime 3600s, window 300s, pad 30s → replaceable at 3300s, consumers st
 ```
 
 - Item stored with `ttl = now + tokenMaxAllowedLifetimeSeconds` (real expiry) and `pad = tokenExpirationPadSeconds`
-- Producer: on a scheduled run, if `now >= ttl - tokenExpirationWindowSeconds` → request a replacement token
-- Consumer: serves the token until `now >= ttl - pad`, then returns `undefined`
-- If replacement fails, the token stays valid until `ttl`; if `ttl` has passed, the item is cleared immediately
+- If replacement fails, the token stays in DynamoDB until expired (within pad); only then is it cleared
 
 ---
 
@@ -227,19 +204,6 @@ e.g. lifetime 3600s, window 300s, pad 30s → replaceable at 3300s, consumers st
 | `ThirdPartyAsyncTokenFunctionEventRule`         | EventBridge Rule | 1-minute cron trigger   |
 | `ThirdPartyTokenTable`                          | DynamoDB Table   | Token cache with TTL    |
 | `CanaryThirdPartyAsyncTokenFunctionErrorsAlarm` | CloudWatch Alarm | Canary deployment gate  |
-
-### Deployment
-
-- Canary deployment via `AutoPublishAlias` + `DeploymentPreference`
-- EventBridge targets the `live` alias (not `$LATEST`)
-- Provisioned concurrency on the `live` alias (when enabled)
-- Bootstrap on cold start validates deployment before canary completes
-
-### VPC
-
-The lambda runs in protected subnets with access to:
-- AWS services endpoint (SSM, DynamoDB)
-- Internet (via NAT) for third-party token endpoint calls
 
 ---
 
