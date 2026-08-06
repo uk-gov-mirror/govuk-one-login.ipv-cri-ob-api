@@ -42,7 +42,7 @@ The enricher Lambda (`BuildNotificationEnricherFunction`) only enriches **CodePi
 - Metric: `AWS/Lambda` → `Errors` on `ThirdPartyAsyncTokenFunction`
 - Period: 60s, Threshold: ≥ 1
 - Routes to: `CriticalAlertsTopicArn`
-- Purpose: canary deployment gate only — not used for runtime alerting
+- Purpose: canary deployment gate (referenced in `DeploymentPreference.Alarms`). Also fires at runtime for any Lambda error since `ActionsEnabled: true` with `AlarmActions` set — but it was not designed as a runtime alerting mechanism and does not cover the primary failure mode (token endpoint failures do not cause Lambda errors).
 
 There are currently no dedicated runtime alarms for the third-party token implementation. This RFC proposes adding some and lists options.
 
@@ -79,7 +79,11 @@ Additionally, the nested stack cannot hardcode profile names into alarm resource
 
 The `ThirdPartyAsyncTokenFunction` processes all enabled profiles in parallel. Individual profile failures are caught and logged, then aggregated.
 
-The thrown error causes the Lambda invocation to fail → `Errors` metric increments → alarm fires.
+If at least one profile throws, an aggregated error is thrown after all profiles complete → Lambda invocation fails → `Errors` metric increments → alarm fires.
+
+However, **token endpoint failures** (non-200 responses, response mapping failures, token validation failures, network timeouts) are caught inside `performNewTokenRequest` and returned as `{ updated: false }` — they do **not** throw. The Lambda invocation succeeds from CloudWatch's perspective. Only infrastructure failures (SSM unavailable, DynamoDB errors) propagate as exceptions and trigger the alarm.
+
+This means the primary failure mode this RFC aims to alert on (third-party endpoint down) does **not** trigger the existing alarm. There are TODO's in the correct places where metrics can be added and used in alarms for these scenarios. There are todo's in the correct places where metrics can be added and used in alarms for these scenarios.
 
 The alarm tells you "the token Lambda errored" but not which prefix(es) failed.
 
