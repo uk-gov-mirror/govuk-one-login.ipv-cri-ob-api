@@ -22,78 +22,19 @@ import { z } from 'zod'
 
 const PLUGIN_NAME = 'my-token-plugin'
 
-// Validate the SSM profile config your plugin expects
 const tokenProfileSsmSchema = z.object({
   'client-id': z.string().min(1),
   'client-secret': z.string().min(1),
   'endpoint-url': z.url()
-  // add any other fields your token endpoint requires
+  // add fields your token endpoint requires
 })
 
 const createMyThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
-  // Identifies this plugin. Must match THIRDPARTY_TOKEN_PLUGIN_NAME exactly —
-  // used to derive the SSM config path and the DynamoDB token key.
   name: PLUGIN_NAME,
-
-  // HTTP status codes from the token endpoint that should fire an alert metric.
-  // Requests must never be retried for these codes (e.g. bad credentials).
   alertStatusCodes: [401, 403],
-
-  // Called once per profile on each scheduled invocation before buildTokenRequest.
-  // Validates the raw SSM profile config and throws if required fields are missing.
-  // Throwing here prevents a bad config from reaching the HTTP call.
   parseConfigProfile: (config) => tokenProfileSsmSchema.parse(config),
-
-  // Constructs the HTTP request sent to the third-party token endpoint.
-  // Receives the validated profile config via input.config (already parsed by parseConfigProfile).
-  // Must return endpointUrl, headers, body, and timeoutMs.
-  buildTokenRequest: (input: PluginInput): ThirdPartyTokenRequestConfig => {
-    const config = tokenProfileSsmSchema.parse(input.config)
-    return {
-      endpointUrl: config['endpoint-url'],
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: config['client-id'],
-        client_secret: config['client-secret']
-      }).toString(),
-      timeoutMs: 10_000
-    }
-  },
-
-  // Parses the raw response body string from the token endpoint into { tokenValue }.
-  // Also receives maxLifetimeSeconds and expirationWindowSeconds (from the plugin config) so
-  // it can reject a token whose advertised lifetime (e.g. expires_in) is too short to be useful.
-  // Return undefined on any parse/validation failure — the update service treats this as a failed
-  // refresh and will preserve the existing token (or clear it if already expired).
-  mapResponse: (
-    responseBody,
-    maxLifetimeSeconds,
-    expirationWindowSeconds
-  ): ThirdPartyTokenResponse | undefined => {
-    try {
-      const parsed = JSON.parse(responseBody) as { access_token?: string; expires_in?: number }
-      if (!parsed.access_token) return undefined
-      // Reject tokens that won't live at least the configured lifetime / past the refresh window
-      if (
-        parsed.expires_in === undefined ||
-        parsed.expires_in < maxLifetimeSeconds ||
-        parsed.expires_in <= expirationWindowSeconds
-      ) {
-        return undefined
-      }
-      return { tokenValue: parsed.access_token }
-    } catch {
-      return undefined
-    }
-  },
-
-  // Final validation of the extracted token value before it is written to DynamoDB.
-  // Return false to reject the token and treat the refresh as failed.
-  // Validation logic depends on the token format — implement based on what the third party returns:
-  //   JWT:           inspect header fields (alg, typ)
-  //   UUID:          z.uuid().safeParse(tokenResponse.tokenValue).success
-  //   opaque string: tokenResponse.tokenValue.length > 0
-  //   unknown/none:  () => true  (if the third party gives no inspectable structure)
+  buildTokenRequest: (input: PluginInput): ThirdPartyTokenRequestConfig => { /* ... */ },
+  mapResponse: (responseBody, maxAllowedLifetimeSeconds): ThirdPartyTokenResponse | undefined => { /* ... */ },
   isTokenValid: (tokenResponse) => tokenResponse.tokenValue.length > 0
 })
 
@@ -101,16 +42,18 @@ const createMyThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
 export const createPlugin = createMyThirdPartyTokenPlugin
 ```
 
+See `src/ob-token-plugin/ob-token-plugin.ts` for a complete implementation.
+
 ### ThirdPartyTokenPlugin contract
 
-| Method / field       | Purpose                                                                                                                                                                                                    |
-|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `name`               | Must match `THIRDPARTY_TOKEN_PLUGIN_NAME` exactly                                                                                                                                                          |
-| `alertStatusCodes`   | HTTP status codes that fire an alert metric and must never be retried                                                                                                                                      |
-| `parseConfigProfile` | Validates the SSM profile config — throw (e.g. zod) if required fields are missing                                                                                                                         |
-| `buildTokenRequest`  | Constructs the HTTP request (URL, headers, body, timeout) from the validated profile config                                                                                                                |
-| `mapResponse`        | Parses the raw response body string → `{ tokenValue }`; also receives `maxLifetimeSeconds` and `expirationWindowSeconds` to validate the token's lifetime. Returns `undefined` on parse/validation failure |
-| `isTokenValid`       | Final validation of the extracted token value before it is stored                                                                                                                                          |
+| Method / field       | Purpose                                                                                                                                                                             |
+|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `name`               | Must match `THIRDPARTY_TOKEN_PLUGIN_NAME` exactly                                                                                                                                   |
+| `alertStatusCodes`   | HTTP status codes that fire an alert metric and must never be retried                                                                                                               |
+| `parseConfigProfile` | Validates the SSM profile config — throw (e.g. zod) if required fields are missing                                                                                                  |
+| `buildTokenRequest`  | Constructs the HTTP request (URL, headers, body, timeout) from the validated profile config                                                                                         |
+| `mapResponse`        | Parses the raw response body string → `{ tokenValue }`; also receives `maxAllowedLifetimeSeconds` to validate the token's lifetime. Returns `undefined` on parse/validation failure |
+| `isTokenValid`       | Final validation of the extracted token value before it is stored                                                                                                                   |
 
 ---
 
@@ -173,30 +116,35 @@ ThirdPartyToken:
     Parameters:
       ThirdPartyTokenPluginLayerArn: !Ref MyTokenPluginLayer
       ThirdPartyTokenPluginName: my-token-plugin
-      # ... other required parameters (ParentStackName, Environment, VpcStackName, etc.)
+      ParentStackName: !Ref AWS::StackName
+      Environment: !Ref Environment
+      VpcStackName: !Ref VpcStackName
+      CodeDeployServiceRoleArn: !Ref CodeDeployServiceRoleArn
+      # See third-party-token.yaml Parameters section for the full list
 ```
 
 ---
 
 ## 5. Add SSM parameters
 
-The nested stack reads config from SSM under `/${stack-name}/${pluginName}/`. Two levels are required:
+The nested stack reads config from SSM under `/${stack-name}/${pluginName}/` (where `stack-name` defaults to `ParentStackName` but can be overridden via the `ThirdPartyTokenResourcePrefix` parameter). Two levels are required:
 
 **Plugin-level config** (read once at cold start):
 ```
 /${stack-name}/my-token-plugin/config
 ```
 
-| Key                            | Example value | Description                             |
-|--------------------------------|---------------|-----------------------------------------|
-| `enabledProfiles`              | `STUB\|UAT`   | Pipe-separated list of profile prefixes |
-| `maxAllowedLifetimeSeconds`    | `3600`        | Maximum token lifetime                  |
-| `tokenExpirationWindowSeconds` | `300`         | How early to refresh before expiry      |
+| Key                              | Example value | Description                                                                |
+|----------------------------------|---------------|----------------------------------------------------------------------------|
+| `enabledProfiles`                | `STUB\|UAT`   | Pipe-separated list of profile prefixes                                    |
+| `tokenMaxAllowedLifetimeSeconds` | `3600`        | Token lifetime stored as the DynamoDB item `ttl` (must be ≤ `expires_in`)  |
+| `tokenExpirationWindowSeconds`   | `300`         | Lead time before expiry when the token becomes eligible for replacement    |
+| `tokenExpirationPadSeconds`      | `30`          | End-of-life buffer; consumers stop serving this many seconds before expiry |
 
 Constraints enforced at cold start:
-- `itemTtlSeconds` (`maxAllowedLifetimeSeconds - tokenExpirationWindowSeconds`) must be ≥ 300
-- `tokenExpirationWindowSeconds` must be ≥ 60
-- `tokenExpirationWindowSeconds` must be < `itemTtlSeconds`
+- `tokenExpirationWindowSeconds` must be ≥ 2 × scheduler frequency (≥ 120s) — guarantees at least one refresh attempt lands inside the window
+- `tokenExpirationPadSeconds` must be ≤ `tokenExpirationWindowSeconds` − scheduler frequency (≤ window − 60) — ensures a refresh runs before consumers stop serving
+- Usable lifetime (`tokenMaxAllowedLifetimeSeconds` − `tokenExpirationWindowSeconds`) must be ≥ `tokenExpirationWindowSeconds` — prevents churn where tokens are replaced almost immediately
 
 **Profile-level config** (read per-profile on each scheduled invocation):
 ```
@@ -238,6 +186,6 @@ If either throws, the canary alarm fires and CodeDeploy rolls back before live t
 - [ ] Makefile target named `build-<LayerLogicalId>`
 - [ ] Layer resource in parent template with `BuildMethod: makefile`
 - [ ] `ThirdPartyTokenPluginLayerArn` and `ThirdPartyTokenPluginName` passed to nested stack
-- [ ] SSM `/config` path created with `enabledProfiles`, `maxAllowedLifetimeSeconds`, `tokenExpirationWindowSeconds`
+- [ ] SSM `/config` path created with `enabledProfiles`, `tokenMaxAllowedLifetimeSeconds`, `tokenExpirationWindowSeconds`, `tokenExpirationPadSeconds`
 - [ ] SSM `/profiles/${PROFILE_NAME}` path created for each enabled profile
 - [ ] `THIRDPARTY_TOKEN_PLUGIN_NAME` matches the layer output filename exactly (without `.mjs`)
