@@ -17,20 +17,6 @@ The plugin is built as a **Lambda Layer** in the parent stack and injected into 
 ### Architecture
 
 ```
-Parent stack (template.yaml)
-  ├── ObTokenPluginLayer (AWS::Serverless::LayerVersion)     ← built by parent
-  │     └── /opt/nodejs/ob-token-plugin.mjs                  ← esbuild output
-  └── ThirdPartyToken (nested stack)
-        └── ThirdPartyAsyncTokenFunction
-              Layers (effective at runtime):
-                - DynatraceSecretLayer                        ← from Globals
-                - ThirdPartyTokenPluginLayerArn              ← function-level, passed from parent
-              Environment:
-                - THIRDPARTY_TOKEN_PLUGIN_NAME: ob-token-plugin
-                - THIRDPARTY_TOKEN_PLUGIN_LAYER_ARN: <layer version ARN>
-```
-
-```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  Parent Stack (template.yaml)                                            │
 │                                                                          │
@@ -88,7 +74,7 @@ export const createPlugin = (): ThirdPartyTokenPlugin => ({
   alertStatusCodes: [401, 403],
   buildTokenRequest: (input) => { /* ... */ },
   isTokenValid: (response) => { /* ... */ },
-  mapResponse: (body, maxLifetimeSeconds, expirationWindowSeconds) => { /* ... */ },
+  mapResponse: (responseBody, maxAllowedLifetimeSeconds) => { /* ... */ },
   parseConfigProfile: (config) => { /* ... */ }
 })
 ```
@@ -97,23 +83,6 @@ The standardised `createPlugin` name means:
 - The loader doesn't need to know the plugin's internal name
 - No naming convention to derive (no `create<Name>ThirdPartyTokenPlugin`)
 - Any CRI can provide a layer with `createPlugin` and it works immediately
-
-In this repo, `createObThirdPartyTokenPlugin` is the internal factory, re-exported under the standard name:
-
-```typescript
-// src/ob-token-plugin/ob-token-plugin.ts
-const createObThirdPartyTokenPlugin = (): ThirdPartyTokenPlugin => ({
-  name: 'ob-token-plugin',
-  alertStatusCodes: [401, 403],
-  buildTokenRequest: (input) => { /* ... */ },
-  isTokenValid: (response) => { /* ... */ },
-  mapResponse: (body, maxLifetimeSeconds, expirationWindowSeconds) => { /* ... */ },
-  parseConfigProfile: (config) => { /* ... */ }
-})
-
-// Required for finding the plugin at runtime
-export const createPlugin = createObThirdPartyTokenPlugin
-```
 
 ### Plugin filename convention
 
@@ -130,38 +99,12 @@ The plugin loader derives the module path from `THIRDPARTY_TOKEN_PLUGIN_NAME`:
 
 ## Plugin Loader
 
-`plugin-loader.ts` lives in the lambda module at `../../../src/async-token/lambda/util/plugin-loader.ts`. It dynamically imports the plugin from the layer at cold start:
+`plugin-loader.ts` dynamically imports the plugin from the layer at cold start:
 
 ```typescript
 // src/async-token/lambda/util/plugin-loader.ts
-import type { ThirdPartyTokenPlugin } from '@src/async-token/plugin-api/token-plugin'
-
-import { requireEnv } from '@common/util/env'
-import { logger } from '@govuk-one-login/cri-logger'
-
-interface PluginModule {
-  createPlugin: () => ThirdPartyTokenPlugin
-}
-
-let cached: ThirdPartyTokenPlugin | undefined
-
-export const loadPlugin = async (): Promise<ThirdPartyTokenPlugin> => {
-  if (cached) return cached
-
-  const pluginName = requireEnv('THIRDPARTY_TOKEN_PLUGIN_NAME')
-  const modulePath = `/opt/nodejs/${pluginName}.mjs`
-
-  const mod = (await import(modulePath)) as PluginModule
-  cached = mod.createPlugin()
-
-  if (cached.name !== pluginName) {
-    throw new Error(`Plugin name mismatch: expected "${pluginName}", got "${cached.name}"`)
-  }
-
-  logger.info('Loaded plugin', { pluginName: cached.name })
-
-  return cached
-}
+const pluginName = requireEnv('THIRDPARTY_TOKEN_PLUGIN_NAME')
+const modulePath = `/opt/nodejs/${pluginName}.mjs`
 ```
 
 If the dynamic import fails or `createPlugin` is not exported, the error propagates at cold start — triggering the canary alarm and rollback. No try/catch is intentional: silent failure is worse than a loud crash. As a sanity check, the loader also verifies the plugin's own `name` matches `THIRDPARTY_TOKEN_PLUGIN_NAME` and throws on mismatch (catching a layer/parameter wiring error at bootstrap).
@@ -287,14 +230,11 @@ On canary failure, CodeDeploy rolls back:
 
 | Scenario                                                          | Behaviour                                                                                                                              |
 |-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| Plugin source unchanged, lambda code changes                      | Layer version stays same, env var unchanged, but function code changes → new version published via code change anyway                  |
 | Plugin source changes, lambda code unchanged                      | Layer version increments → env var changes → new version published → canary validates new plugin                                       |
 | Plugin source unchanged, only dependencies change (e.g. zod bump) | If esbuild output differs → new layer version → same cascade. If output identical → no change (correct)                                |
 | `sam build` cache hit (identical esbuild output)                  | No new layer version → ARN unchanged → env var unchanged → no unnecessary deployment (correct)                                         |
-| Layer build fails in `sam build`                                  | Build fails before deploy — nothing deployed, nothing changes                                                                          |
 | Layer module has wrong export name                                | Cold start `loadPlugin()` calls `mod.createPlugin()` which is undefined → throws TypeError → bootstrap fails → canary alarm → rollback |
 | Layer has incompatible dependency versions                        | Runtime error during bootstrap → canary alarm → rollback                                                                               |
-| Multiple deploys with no plugin change                            | Layer ARN same → env var same → no spurious function version published (correct)                                                       |
 
 ---
 
@@ -302,67 +242,33 @@ On canary failure, CodeDeploy rolls back:
 
 ### Unit Testing — Plugin Loader
 
+Tests use `vi.doMock` (deferred mock, compatible with dynamic `import()`) and `vi.resetModules()` to isolate each case. See `test/unit/async-token/lambda/util/plugin-loader.test.ts`:
+
 ```typescript
-// test/unit/async-token/lambda/util/plugin-loader.test.ts
 describe('loadPlugin', () => {
-  it('loads plugin from layer path derived from THIRDPARTY_TOKEN_PLUGIN_NAME', async () => {
+  it('loads the plugin from the path derived from THIRDPARTY_TOKEN_PLUGIN_NAME', async () => {
     vi.stubEnv('THIRDPARTY_TOKEN_PLUGIN_NAME', 'test-plugin')
-    vi.mock('/opt/nodejs/test-plugin.mjs', () => ({
-      createPlugin: () => mockPlugin
-    }))
+    const plugin = { name: 'test-plugin' }
+    vi.doMock('/opt/nodejs/test-plugin.mjs', () => ({ createPlugin: () => plugin }))
 
     const { loadPlugin } = await import('@src/async-token/lambda/util/plugin-loader')
-    const plugin = await loadPlugin()
-    expect(plugin.name).toBe('test-plugin')
+    expect(await loadPlugin()).toBe(plugin)
   })
 
-  it('throws if THIRDPARTY_TOKEN_PLUGIN_NAME is not set', async () => {
-    delete process.env['THIRDPARTY_TOKEN_PLUGIN_NAME']
-    const { loadPlugin } = await import('@src/async-token/lambda/util/plugin-loader')
-    await expect(loadPlugin()).rejects.toThrow('THIRDPARTY_TOKEN_PLUGIN_NAME')
-  })
-
-  it('throws if layer module does not export createPlugin', async () => {
-    vi.stubEnv('THIRDPARTY_TOKEN_PLUGIN_NAME', 'bad-plugin')
-    vi.mock('/opt/nodejs/bad-plugin.mjs', () => ({}))
-    const { loadPlugin } = await import('@src/async-token/lambda/util/plugin-loader')
-    await expect(loadPlugin()).rejects.toThrow()
-  })
+  it('returns the cached plugin on subsequent calls', ...)
+  it('throws when THIRDPARTY_TOKEN_PLUGIN_NAME is not set', ...)
+  it('throws when plugin name does not match THIRDPARTY_TOKEN_PLUGIN_NAME', ...)
+  it('throws when createPlugin throws', ...)
 })
 ```
 
 ### Deployment Validation (Built-in)
 
-The bootstrap pattern provides automatic deployment validation:
-
-```typescript
-const plugin = await loadPlugin()            // Fails if layer missing or export wrong
-await updateForAllEnabledProfiles(true)      // Fails if plugin can't fetch token
-```
-
-If either throws → canary alarm → CodeDeploy rolls back. No additional deployment test needed.
+The bootstrap pattern provides automatic deployment validation — if `loadPlugin()` or `updateForAllEnabledProfiles(true)` throws at cold start → canary alarm → CodeDeploy rolls back.
 
 ### Layer Content Validation (CI)
 
-> **Recommended, not yet implemented.** A test that imports the built layer artifact and asserts the plugin contract would catch a broken layer build in CI (before deploy), complementing the runtime bootstrap validation. Example:
-
-```typescript
-// test/unit/layer-content.test.ts (recommended — not yet present)
-describe('ObTokenPluginLayer build output', () => {
-  it('exports createPlugin conforming to ThirdPartyTokenPlugin contract', async () => {
-    const mod = await import('../../.aws-sam/build/ObTokenPluginLayer/nodejs/ob-token-plugin.mjs')
-    expect(typeof mod.createPlugin).toBe('function')
-
-    const plugin = mod.createPlugin()
-    expect(plugin.name).toBe('ob-token-plugin')
-    expect(plugin.alertStatusCodes).toEqual([401, 403])
-    expect(typeof plugin.buildTokenRequest).toBe('function')
-    expect(typeof plugin.isTokenValid).toBe('function')
-    expect(typeof plugin.mapResponse).toBe('function')
-    expect(typeof plugin.parseConfigProfile).toBe('function')
-  })
-})
-```
+> **TODO:** Add a test that imports the built layer artifact from `.aws-sam/build/ObTokenPluginLayer/nodejs/` and asserts the `createPlugin` contract. This would catch broken layer builds in CI before deploy.
 
 ---
 
@@ -416,29 +322,13 @@ Publish the token stack code as an npm package. Consumers write shim files that 
 
 **When to use shims instead:** If you need maximum tree-shaking or static type safety across the boundary. Note this comes at the cost of the independent rollback boundary and the ability to deploy plugin fixes without redeploying the lambda.
 
-### SAR (Serverless Application Repository)
+### SAR (Serverless Application Repository) & Reusability
 
-The intended future mechanism for publishing the third-party-token stack. With the plugin decoupled via `ThirdPartyTokenPluginLayerArn`, SAR now works — consumers reference the published stack and pass their own layer ARN as a parameter, exactly like `di-ipv-cri-oauth-common` today.
+The intended future mechanism for publishing the third-party-token stack. With the plugin decoupled via `ThirdPartyTokenPluginLayerArn`, SAR works — consumers reference the published stack and pass their own layer ARN as a parameter, exactly like `di-ipv-cri-oauth-common` today.
 
-The SAR artifact contains only the nested stack template and lambda code (including the plugin loader). No plugin code is included — that lives entirely in the consumer's layer. The only change from the current setup is where `third-party-token.yaml` is referenced from:
+The SAR artifact contains only the nested stack template and lambda code (including the plugin loader). No plugin code is included — that lives entirely in the consumer's layer.
 
-```yaml
-# Current (local)
-Location: ./third-party-token.yaml
-
-# Future (SAR)
-Location:
-  ApplicationId: arn:aws:serverlessrepo:eu-west-2:...:applications/third-party-token
-  SemanticVersion: 1.0.0
-```
-
-This was out of scope for the initial implementation due to SAR publishing setup complexity (packaging, versioning, CI pipeline). No architectural changes are needed to support it — the current design was built with SAR publication in mind.
-
----
-
-## Reusability for Other CRIs
-
-Once the third-party-token stack is published to SAR, another CRI adopts it by:
+Another CRI adopts it by:
 
 1. Creating their plugin implementing `ThirdPartyTokenPlugin` with `export const createPlugin`
 2. Building it as a layer in their parent stack (filename must match the plugin name exactly)
@@ -471,6 +361,8 @@ The contract:
 - Module exports `createPlugin()` returning a `ThirdPartyTokenPlugin`
 
 No fork needed, no code changes to the published stack.
+
+This was out of scope for the initial implementation due to SAR publishing setup complexity (packaging, versioning, CI pipeline). No architectural changes are needed — the current design was built with SAR publication in mind.
 
 ---
 
