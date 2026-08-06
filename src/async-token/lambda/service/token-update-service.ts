@@ -1,7 +1,7 @@
 import type { PluginInput, ThirdPartyTokenPlugin } from '@src/async-token/plugin-api/token-plugin'
 
 import { logger } from '@govuk-one-login/cri-logger'
-import { type ThirdPartyTokenRepository } from '@src/async-token/common'
+import { isThirdPartyTokenExpired, type ThirdPartyTokenRepository } from '@src/async-token/common'
 import {
   calculateItemTtl,
   formatThirdPartyTokenExpiryDateTime,
@@ -41,13 +41,13 @@ const createThirdPartyTokenUpdateService = (
     const tokenName = getThirdPartyTokenName(tokenPrefix)
     const token = await tokenRepository.getToken(tokenName)
     const hasExistingToken = token !== undefined
-    const ttlExpired =
+    const ttlExpiredOrNearExpiration =
       hasExistingToken &&
       isThirdPartyTokenNearExpiration(token, pluginConfig.tokenExpirationWindowSeconds)
 
-    if (hasExistingToken && !ttlExpired && !tokenForceUpdate) {
+    if (hasExistingToken && !ttlExpiredOrNearExpiration && !tokenForceUpdate) {
       return {
-        message: `No update needed - hasExistingToken: ${hasExistingToken}, ttlExpired: ${ttlExpired}, tokenForceUpdate: ${tokenForceUpdate}`,
+        message: `No update needed - hasExistingToken: ${hasExistingToken}, ttlExpiredOrNearExpiration: ${ttlExpiredOrNearExpiration}, tokenForceUpdate: ${tokenForceUpdate}`,
         updated: false
       }
     }
@@ -55,7 +55,7 @@ const createThirdPartyTokenUpdateService = (
     // For visibility at runtime for the update trigger
     const reasons = [
       !hasExistingToken && 'noExistingToken',
-      ttlExpired && 'ttlExpired',
+      ttlExpiredOrNearExpiration && 'ttlExpiredOrNearExpiration',
       tokenForceUpdate && 'tokenForceUpdate'
     ]
       .filter(Boolean)
@@ -82,7 +82,7 @@ const createThirdPartyTokenUpdateService = (
     // This enables an earlier fail and avoids consumers
     // continuing to use a known expired token
     // with a third party call failing on use later
-    if (ttlExpired && token) {
+    if (token && isThirdPartyTokenExpired(token)) {
       const expiredDateTime = formatThirdPartyTokenExpiryDateTime(token.ttl)
       errorMessage = `${errorMessage} and removed current token for ${tokenName} as it expired - ${expiredDateTime}`
       await tokenRepository.clearToken(tokenName)

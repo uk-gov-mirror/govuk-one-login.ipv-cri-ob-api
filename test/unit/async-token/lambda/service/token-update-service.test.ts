@@ -10,6 +10,7 @@ const {
   mockCalculateItemTtl,
   mockClearToken,
   mockGetToken,
+  mockIsExpired,
   mockIsNearExpiration,
   mockPlugin,
   mockPutToken
@@ -17,6 +18,7 @@ const {
   mockCalculateItemTtl: vi.fn(),
   mockClearToken: vi.fn(),
   mockGetToken: vi.fn(),
+  mockIsExpired: vi.fn(),
   mockIsNearExpiration: vi.fn(),
   mockPlugin: {
     alertStatusCodes: [401, 403],
@@ -32,6 +34,7 @@ const {
 vi.mock('@src/async-token/common', () => ({
   calculateItemTtl: mockCalculateItemTtl,
   formatThirdPartyTokenExpiryDateTime: (ttl: number) => new Date(ttl * 1000).toISOString(),
+  isThirdPartyTokenExpired: mockIsExpired,
   isThirdPartyTokenNearExpiration: mockIsNearExpiration
 }))
 
@@ -161,7 +164,7 @@ describe('tokenUpdateService', () => {
     )
   })
 
-  it('does not clear token on non-200 response when no existing token', async () => {
+  it('does not clear token on failed refresh when no existing token', async () => {
     setupNoExistingTokenWithRequest()
     vi.mocked(fetch).mockResolvedValue(buildFetchResponse({ body: '', status: 500 }))
 
@@ -171,15 +174,30 @@ describe('tokenUpdateService', () => {
     expect(mockClearToken).not.toHaveBeenCalled()
   })
 
-  it('clears existing token on non-200 response when ttl has expired', async () => {
-    mockGetToken.mockResolvedValue(buildTokenEntity({ ttl: 100 }))
+  it('does not clear token on failed refresh when near expiry but not expired', async () => {
+    mockGetToken.mockResolvedValue(buildTokenEntity())
     mockIsNearExpiration.mockReturnValue(true)
+    mockIsExpired.mockReturnValue(false)
     mockPlugin.buildTokenRequest.mockReturnValue(buildTokenRequestConfig())
     vi.mocked(fetch).mockResolvedValue(buildFetchResponse({ body: '', status: 500 }))
 
     const result = await tokenUpdateService.updateTokenIfNeeded(buildPluginInput(), false)
 
     expect(result.updated).toBe(false)
+    expect(mockClearToken).not.toHaveBeenCalled()
+  })
+
+  it('clears token on failed refresh when token is expired (within pad)', async () => {
+    mockGetToken.mockResolvedValue(buildTokenEntity())
+    mockIsNearExpiration.mockReturnValue(true)
+    mockIsExpired.mockReturnValue(true)
+    mockPlugin.buildTokenRequest.mockReturnValue(buildTokenRequestConfig())
+    vi.mocked(fetch).mockResolvedValue(buildFetchResponse({ body: '', status: 500 }))
+
+    const result = await tokenUpdateService.updateTokenIfNeeded(buildPluginInput(), false)
+
+    expect(result.updated).toBe(false)
+    expect(result.message).toContain('removed current token for strategy_suffix as it expired')
     expect(mockClearToken).toHaveBeenCalledWith('strategy_suffix')
   })
 
