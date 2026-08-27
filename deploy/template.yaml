@@ -703,6 +703,28 @@ Resources:
 
   ####################################################################
   #                                                                  #
+  #  Bank List                                                       #
+  #                                                                  #
+  ####################################################################
+
+  BankListTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-bank-list"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: profile
+          AttributeType: S
+      KeySchema:
+        - AttributeName: profile
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+
+  ####################################################################
+  #                                                                  #
   # API config                                                       #
   #                                                                  #
   ####################################################################
