@@ -143,6 +143,7 @@ Mappings:
       memorySize: 1024
       vcDomain: review-ob.dev.account.gov.uk
       tokenRotatorProfiles: STUB|UAT
+      bankListUpdaterProfiles: STUB|UAT
     build:
       dynatraceSecretArn: arn:aws:secretsmanager:eu-west-2:216552277552:secret:DynatraceNonProductionVariables
       dynatraceLayer: arn:aws:lambda:eu-west-2:216552277552:layer:Dynatrace_OneAgent_1_329_73_20260123-140641_with_collector_nodejs_arm:1
@@ -150,6 +151,7 @@ Mappings:
       memorySize: 1024
       vcDomain: review-ob.build.account.gov.uk
       tokenRotatorProfiles: STUB|UAT
+      bankListUpdaterProfiles: STUB|UAT
     staging:
       dynatraceSecretArn: arn:aws:secretsmanager:eu-west-2:216552277552:secret:DynatraceNonProductionVariables
       dynatraceLayer: arn:aws:lambda:eu-west-2:216552277552:layer:Dynatrace_OneAgent_1_329_73_20260123-140641_with_collector_nodejs_arm:1
@@ -157,6 +159,7 @@ Mappings:
       memorySize: 1024
       vcDomain: review-ob.staging.account.gov.uk
       tokenRotatorProfiles: STUB|UAT
+      bankListUpdaterProfiles: STUB|UAT
     integration:
       dynatraceSecretArn: arn:aws:secretsmanager:eu-west-2:216552277552:secret:DynatraceNonProductionVariables
       dynatraceLayer: arn:aws:lambda:eu-west-2:216552277552:layer:Dynatrace_OneAgent_1_329_73_20260123-140641_with_collector_nodejs_arm:1
@@ -164,6 +167,7 @@ Mappings:
       memorySize: 1024
       vcDomain: review-ob.integration.account.gov.uk
       tokenRotatorProfiles: UAT
+      bankListUpdaterProfiles: UAT
     production:
       dynatraceSecretArn: arn:aws:secretsmanager:eu-west-2:216552277552:secret:DynatraceProductionVariables
       dynatraceLayer: arn:aws:lambda:eu-west-2:216552277552:layer:Dynatrace_OneAgent_1_329_73_20260123-140641_with_collector_nodejs_arm:1
@@ -171,6 +175,7 @@ Mappings:
       memorySize: 1024
       vcDomain: review-ob.account.gov.uk
       tokenRotatorProfiles: LIVE
+      bankListUpdaterProfiles: LIVE
 
   # Local Dev
   IPVCoreStubLocalMapping:
@@ -182,6 +187,30 @@ Mappings:
       authenticationAlg: "ES256"
       jwksEndpoint: "https://cri.core.build.stubs.account.gov.uk/.well-known/jwks.json"
 
+  ProfileEndpointMappings:
+    dev:
+      StubBanksEndpointUrl: https://8nqpgft8mc.execute-api.eu-west-2.amazonaws.com/dev/api/v2.0/banks
+      UatBanksEndpointUrl: https://aisapi.sb.ecospend.com/api/v2.0/banks
+      LiveBanksEndpointUrl: https://aisapi.ecospend.com/api/v2.0/banks
+    build:
+      StubBanksEndpointUrl: https://babtt0cp72.execute-api.eu-west-2.amazonaws.com/build/api/v2.0/banks
+      UatBanksEndpointUrl: https://aisapi.sb.ecospend.com/api/v2.0/banks
+      LiveBanksEndpointUrl: https://aisapi.ecospend.com/api/v2.0/banks
+    staging:
+      StubBanksEndpointUrl: https://52wrvaocmk.execute-api.eu-west-2.amazonaws.com/staging/api/v2.0/banks
+      UatBanksEndpointUrl: https://aisapi.sb.ecospend.com/api/v2.0/banks
+      LiveBanksEndpointUrl: https://aisapi.ecospend.com/api/v2.0/banks
+    integration:
+      StubBanksEndpointUrl: https://aisapi.sb.ecospend.com/api/v2.0/banks
+      UatBanksEndpointUrl: https://aisapi.sb.ecospend.com/api/v2.0/banks
+      LiveBanksEndpointUrl: https://aisapi.ecospend.com/api/v2.0/banks
+    production:
+      StubBanksEndpointUrl: https://aisapi.ecospend.com/api/v2.0/banks
+      UatBanksEndpointUrl: https://aisapi.ecospend.com/api/v2.0/banks
+      LiveBanksEndpointUrl: https://aisapi.ecospend.com/api/v2.0/banks
+
+
+
 Resources:
 
   ####################################################################
@@ -189,6 +218,7 @@ Resources:
   # OAuth Common                                                     #
   #                                                                  #
   ####################################################################
+
   OAuth:
     Type: AWS::Serverless::Application
     Properties:
@@ -722,6 +752,108 @@ Resources:
         SSEEnabled: true
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+
+  BankListUpdaterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-bank-list-updater"
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-AWSServicesEndpointSecurityGroupId"
+        SubnetIds:
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-ProtectedSubnetIdA"
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-ProtectedSubnetIdB"
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-ProtectedSubnetIdC"
+      Handler: bank-list-updater.handler
+      CodeUri: ../
+      LoggingConfig:
+        LogGroup: !Ref BankListUpdaterFunctionLogGroup
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: !Sub "${CriIdentifier}-bank-list-updater"
+          TOKEN_ROTATOR_DB_TABLE_NAME: !Ref TokenRotatorTable
+          BANK_LIST_DB_TABLE_NAME: !Ref BankListTable
+          BANK_LIST_PROFILES: !FindInMap [ EnvironmentConfiguration, !Ref Environment, bankListUpdaterProfiles ]
+      AutoPublishAlias: live
+      AutoPublishAliasAllProperties: true
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSXrayWriteOnlyAccess
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt TokenRotatorTable.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt BankListTable.Arn
+        - SSMParameterReadPolicy:
+            ParameterName: !If
+              - UseParameterPrefix
+              - !Sub "${ParameterPrefix}/bank-list/*"
+              - !Sub "${AWS::StackName}/bank-list/*"
+      Events:
+        ScheduledUpdate:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Sourcemap: true
+        Target: node24
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - src/bank-list/handler/bank-list-updater.ts
+        External:
+          - "@aws-sdk/*"
+        Banner:
+          - js=import { createRequire } from 'module'; const require = createRequire(import.meta.url);
+
+  BankListUpdaterFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-bank-list-updater"
+      RetentionInDays: !Ref LogGroupRetentionInDays
+
+  StubBanksEndpointParameter:
+    Condition: IsDeployedFromPipeline
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/bank-list/STUB/endpoint-url"
+      Description: Banks endpoint for STUB
+      Type: String
+      Value: !FindInMap [ ProfileEndpointMappings, !Ref Environment, StubBanksEndpointUrl ]
+
+  UatBanksEndpointParameter:
+    Condition: IsDeployedFromPipeline
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/bank-list/UAT/endpoint-url"
+      Description: Banks endpoint for UAT
+      Type: String
+      Value: !FindInMap [ ProfileEndpointMappings, !Ref Environment, UatBanksEndpointUrl ]
+
+  LiveBanksEndpointParameter:
+    Condition: IsDeployedFromPipeline
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/bank-list/LIVE/endpoint-url"
+      Description: Banks endpoint for LIVE
+      Type: String
+      Value: !FindInMap [ ProfileEndpointMappings, !Ref Environment, LiveBanksEndpointUrl ]
 
   ####################################################################
   #                                                                  #
