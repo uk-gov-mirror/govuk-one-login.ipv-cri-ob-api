@@ -5,7 +5,11 @@ import { createBankListRepository } from '@src/bank-list/client/bank-list-reposi
 import { BanksEndpointProfile } from '@src/bank-list/model/bank-list'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const TABLE_NAME = 'bank-list-table'
+const { TABLE_NAME } = vi.hoisted(() => {
+  const TABLE_NAME = 'bank-list-table'
+  process.env['BANK_LIST_DB_TABLE_NAME'] = TABLE_NAME
+  return { TABLE_NAME }
+})
 
 const banks: StoredBank[] = [
   {

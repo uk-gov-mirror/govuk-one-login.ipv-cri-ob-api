@@ -1,14 +1,15 @@
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 import type { TokenEntity } from '@lib/token-rotator/model/token-entity'
 
+import { createDynamoTokenRepository } from '@lib/token-rotator/client/dynamo-token-repository'
+import { TokenProfile } from '@lib/token-rotator/model/token-profile'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const TABLE_NAME = 'token-rotator-table'
-vi.stubEnv('TOKEN_ROTATOR_DB_TABLE_NAME', TABLE_NAME)
-
-const { createDynamoTokenRepository } =
-  await import('@lib/token-rotator/client/dynamo-token-repository')
-const { TokenProfile } = await import('@lib/token-rotator/model/token-profile')
+const { TABLE_NAME } = vi.hoisted(() => {
+  const TABLE_NAME = 'token-rotator-table'
+  process.env['TOKEN_ROTATOR_DB_TABLE_NAME'] = TABLE_NAME
+  return { TABLE_NAME }
+})
 
 const mockSendCommand = vi.fn()
 const mockDynamoDBDocumentClient = { send: mockSendCommand } as unknown as DynamoDBDocumentClient

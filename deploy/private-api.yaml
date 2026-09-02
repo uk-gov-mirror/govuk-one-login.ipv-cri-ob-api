@@ -13,7 +13,35 @@ paths:
         uri:
           Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BasicFunction.Arn}:live/invocations
         type: "aws_proxy"
-
+  /banks:
+    get:
+      summary: "GET the list of banks available for the caller's session"
+      parameters:
+        - $ref: "#/components/parameters/SessionHeader"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankList"
+        "401":
+          description: "401 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: "500 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BankListRetrieverFunction.Arn}:live/invocations
+        type: "aws_proxy"
   /authorization:
     get:
       parameters:
@@ -180,6 +208,39 @@ components:
           type: "string"
         redirect_uri:
           type: "string"
+    BankList:
+      required:
+        - "banks"
+        - "profile"
+        - "refreshedAt"
+      type: "object"
+      properties:
+        banks:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Bank"
+        profile:
+          type: "string"
+          enum:
+            - "LIVE"
+            - "STUB"
+            - "UAT"
+        refreshedAt:
+          type: "integer"
+          format: "int64"
+    Bank:
+      required:
+        - "bankId"
+        - "friendlyName"
+        - "serviceStatus"
+      type: "object"
+      properties:
+        bankId:
+          type: "string"
+        friendlyName:
+          type: "string"
+        serviceStatus:
+          type: "boolean"
 
 x-amazon-apigateway-request-validators:
   Validate both:
