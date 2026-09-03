@@ -822,11 +822,75 @@ Resources:
         Banner:
           - js=import { createRequire } from 'module'; const require = createRequire(import.meta.url);
 
+  BankListRetrieverFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-bank-list-retriever"
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-AWSServicesEndpointSecurityGroupId"
+        SubnetIds:
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-PrivateSubnetIdA"
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-PrivateSubnetIdB"
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-PrivateSubnetIdC"
+      Handler: bank-list-retriever.handler
+      CodeUri: ../
+      LoggingConfig:
+        LogGroup: !Ref BankListRetrieverFunctionLogGroup
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: !Sub "${CriIdentifier}-bank-list-retriever"
+          BANK_LIST_DB_TABLE_NAME: !Ref BankListTable
+      AutoPublishAlias: live
+      AutoPublishAliasAllProperties: true
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSXrayWriteOnlyAccess
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt BankListTable.Arn
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Sourcemap: true
+        Target: node24
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - src/bank-list/handler/bank-list-retriever.ts
+        External:
+          - "@aws-sdk/*"
+        Banner:
+          - js=import { createRequire } from 'module'; const require = createRequire(import.meta.url);
+
   BankListUpdaterFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-bank-list-updater"
       RetentionInDays: !Ref LogGroupRetentionInDays
+
+  BankListRetrieverFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-bank-list-retriever"
+      RetentionInDays: !Ref LogGroupRetentionInDays
+
+  BankListRetrieverFunctionAliasPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref BankListRetrieverFunction.Alias
+      Principal: apigateway.amazonaws.com
 
   StubBanksEndpointParameter:
     Condition: IsDeployedFromPipeline

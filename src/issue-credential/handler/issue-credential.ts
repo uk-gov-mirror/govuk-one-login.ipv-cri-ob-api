@@ -1,5 +1,6 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
 
+import { sessionRepository } from '@common/client/session-repository'
 import { UnauthorisedError } from '@common/error/unauthorised-error'
 import {
   errorHandler,
@@ -15,7 +16,6 @@ import { logger } from '@govuk-one-login/cri-logger'
 import { metrics } from '@govuk-one-login/cri-metrics'
 import { identityScoreRepository } from '@src/issue-credential/client/identity-score-repository'
 import { personDetailsRepository } from '@src/issue-credential/client/person-details-repository'
-import { sessionRepository } from '@src/issue-credential/client/session-repository'
 import { createIssueCredentialService } from '@src/issue-credential/service/issue-credential-service'
 import { jwtEnvelopeGenerator } from '@src/issue-credential/service/jwt-envelope-generator'
 import { verifiableCredentialBuilder } from '@src/issue-credential/service/verifiable-credential-builder'

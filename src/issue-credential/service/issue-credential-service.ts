@@ -1,19 +1,16 @@
+import type { SessionRepository } from '@common/client/session-repository'
 import type { AuditEventPublisher } from '@common/service/audit-event-publisher'
 import type { IdentityScoreRepository } from '@src/issue-credential/client/identity-score-repository'
 import type { PersonDetailsRepository } from '@src/issue-credential/client/person-details-repository'
-import type { SessionRepository } from '@src/issue-credential/client/session-repository'
 import type { IssueCredentialRequest } from '@src/issue-credential/model/issue-credential-request'
 import type { IssueCredentialResponse } from '@src/issue-credential/model/issue-credential-response'
 import type { JwtEnvelopeGenerator } from '@src/issue-credential/service/jwt-envelope-generator'
 import type { VerifiableCredentialBuilder } from '@src/issue-credential/service/verifiable-credential-builder'
 import type { VerifiableCredentialSigner } from '@src/issue-credential/service/verifiable-credential-signer'
 
+import { SessionNotFoundError } from '@common/error/session-not-found-error'
 import { logger } from '@govuk-one-login/cri-logger'
-import {
-  IdentityScoreNotFoundError,
-  PersonDetailsNotFoundError,
-  SessionNotFoundError
-} from '@src/issue-credential/error'
+import { IdentityScoreNotFoundError, PersonDetailsNotFoundError } from '@src/issue-credential/error'
 
 interface IssueCredentialCollaborators {
   auditEventPublisher: AuditEventPublisher
