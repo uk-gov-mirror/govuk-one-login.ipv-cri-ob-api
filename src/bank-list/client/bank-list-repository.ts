@@ -1,5 +1,5 @@
-import type { BankListEntity, BanksEndpointProfile } from '../model/bank-list'
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
+import type { BankListEntity, BanksEndpointProfile } from '@src/bank-list/model/bank-list'
 
 import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb'
 

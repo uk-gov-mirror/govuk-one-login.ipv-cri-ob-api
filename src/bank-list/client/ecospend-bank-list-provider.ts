@@ -1,30 +1,19 @@
-import type { BankListProvider } from './bank-list-provider'
+import type { BankListProvider } from '@src/bank-list/model/bank-list-provider'
 
-import { BanksEndpointProfile } from '../model/bank-list'
-import { ecospendBankListResponseSchema } from '../model/ecospend-banks-response'
-import { getErrorMessage } from '../util/get-error-message'
+import { BanksEndpointProfile } from '@src/bank-list/model/bank-list'
+import { ecospendBankListResponseSchema } from '@src/bank-list/model/ecospend-banks-response'
+import { getErrorMessage } from '@src/bank-list/util/get-error-message'
 
 const FETCH_TIMEOUT_MS = 10_000
 
 export interface BanksRequestConfig {
-  endpointUrl: string
   customList?: string
+  endpointUrl: string
 }
 
 interface EcospendBankListProviderCollaborators {
-  retrieveAccessToken: (profile: BanksEndpointProfile) => Promise<string | undefined>
   getBanksRequestConfig: (profile: BanksEndpointProfile) => Promise<BanksRequestConfig>
-}
-
-const isSandbox = (profile: BanksEndpointProfile): boolean => {
-  switch (profile) {
-    case BanksEndpointProfile.LIVE:
-      return false
-
-    case BanksEndpointProfile.STUB:
-    case BanksEndpointProfile.UAT:
-      return true
-  }
+  retrieveAccessToken: (profile: BanksEndpointProfile) => Promise<string | undefined>
 }
 
 export const createEcospendBankListProvider = (
@@ -40,8 +29,8 @@ export const createEcospendBankListProvider = (
     const requestConfig = await collaborators.getBanksRequestConfig(profile)
     const url = new URL(requestConfig.endpointUrl)
 
-    url.searchParams.set('is_sandbox', String(isSandbox(profile)))
-    // Note: there's still an open question on if we want to filter on purpose/abilities
+    url.searchParams.set('is_sandbox', String(profile !== BanksEndpointProfile.LIVE))
+    // Note: there's still an open question on if there are other acceptable divisions e.g. Private
     url.searchParams.set('division', 'Personal')
     url.searchParams.set('standard', 'OBIE')
     url.searchParams.set('country_iso_code', 'GB')

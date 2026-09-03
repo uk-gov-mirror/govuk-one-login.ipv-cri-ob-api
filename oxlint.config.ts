@@ -80,8 +80,6 @@ export default defineConfig({
         type: 'natural'
       }
     ],
-    'perfectionist/sort-interfaces': 'off',
-    'perfectionist/sort-modules': 'off',
     'perfectionist/sort-objects': 'off'
   },
   overrides: [

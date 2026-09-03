@@ -1,5 +1,5 @@
-import type { BanksEndpointProfile } from '../model/bank-list'
-import type { BanksRequestConfig } from './ecospend-bank-list-provider'
+import type { BanksRequestConfig } from '@src/bank-list/client/ecospend-bank-list-provider'
+import type { BanksEndpointProfile } from '@src/bank-list/model/bank-list'
 
 import { getParameters } from '@aws-lambda-powertools/parameters/ssm'
 

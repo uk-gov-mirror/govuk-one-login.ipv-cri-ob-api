@@ -1,4 +1,4 @@
-import type { BanksEndpointProfile, StoredBank } from '../model/bank-list'
+import type { BanksEndpointProfile, StoredBank } from '@src/bank-list/model/bank-list'
 
 export interface BankListProvider {
   getBanks: (profile: BanksEndpointProfile) => Promise<StoredBank[]>

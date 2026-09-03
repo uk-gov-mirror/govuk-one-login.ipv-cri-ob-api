@@ -1,6 +1,6 @@
-import type { BankListProvider } from '@src/bank-list/client/bank-list-provider'
 import type { BankListRepository } from '@src/bank-list/client/bank-list-repository'
 import type { BankListEntity, StoredBank } from '@src/bank-list/model/bank-list'
+import type { BankListProvider } from '@src/bank-list/model/bank-list-provider'
 
 import { BanksEndpointProfile } from '@src/bank-list/model/bank-list'
 import { createBankListUpdateService } from '@src/bank-list/service/bank-list-update-service'
@@ -19,7 +19,7 @@ const oneBank: StoredBank[] = [
 
 const buildBankListEntity = (overrides: Partial<BankListEntity> = {}): BankListEntity => ({
   banks: oneBank,
-  refreshedAt: NOW_EPOCH_SECONDS,
+  refreshedAtSeconds: NOW_EPOCH_SECONDS,
   profile: BanksEndpointProfile.STUB,
   ...overrides
 })
@@ -66,7 +66,7 @@ describe('createBankListUpdateService', () => {
     expect(bankListProvider.getBanks).toHaveBeenCalledWith(BanksEndpointProfile.STUB)
     expect(bankListRepository.replaceList).toHaveBeenCalledWith({
       banks: oneBank,
-      refreshedAt: NOW_EPOCH_SECONDS,
+      refreshedAtSeconds: NOW_EPOCH_SECONDS,
       profile: BanksEndpointProfile.STUB
     })
     expect(result).toEqual({ updated: true })
@@ -75,7 +75,7 @@ describe('createBankListUpdateService', () => {
   it('skips a list younger than the refresh threshold', async () => {
     vi.mocked(bankListRepository.getList).mockResolvedValue(
       buildBankListEntity({
-        refreshedAt: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS + 1
+        refreshedAtSeconds: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS + 1
       })
     )
 
@@ -89,7 +89,7 @@ describe('createBankListUpdateService', () => {
   it('refreshes a list exactly at the refresh threshold', async () => {
     vi.mocked(bankListRepository.getList).mockResolvedValue(
       buildBankListEntity({
-        refreshedAt: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS
+        refreshedAtSeconds: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS
       })
     )
 
@@ -98,7 +98,7 @@ describe('createBankListUpdateService', () => {
     expect(bankListProvider.getBanks).toHaveBeenCalledWith(BanksEndpointProfile.STUB)
     expect(bankListRepository.replaceList).toHaveBeenCalledWith({
       banks: oneBank,
-      refreshedAt: NOW_EPOCH_SECONDS,
+      refreshedAtSeconds: NOW_EPOCH_SECONDS,
       profile: BanksEndpointProfile.STUB
     })
     expect(result).toEqual({ updated: true })
@@ -107,7 +107,7 @@ describe('createBankListUpdateService', () => {
   it('refreshes a list older than the refresh threshold', async () => {
     vi.mocked(bankListRepository.getList).mockResolvedValue(
       buildBankListEntity({
-        refreshedAt: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS - 1
+        refreshedAtSeconds: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS - 1
       })
     )
 
@@ -116,7 +116,7 @@ describe('createBankListUpdateService', () => {
     expect(bankListProvider.getBanks).toHaveBeenCalledWith(BanksEndpointProfile.STUB)
     expect(bankListRepository.replaceList).toHaveBeenCalledWith({
       banks: oneBank,
-      refreshedAt: NOW_EPOCH_SECONDS,
+      refreshedAtSeconds: NOW_EPOCH_SECONDS,
       profile: BanksEndpointProfile.STUB
     })
     expect(result).toEqual({ updated: true })
@@ -124,10 +124,10 @@ describe('createBankListUpdateService', () => {
 
   it('does not replace the list and preserves an exisitng list when retrieval fails', async () => {
     const existingList = buildBankListEntity({
-      refreshedAt: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS
+      refreshedAtSeconds: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS
     })
     vi.mocked(bankListRepository.getList).mockResolvedValue(
-      buildBankListEntity({ refreshedAt: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS })
+      buildBankListEntity({ refreshedAtSeconds: NOW_EPOCH_SECONDS - REFRESH_AFTER_SECONDS })
     )
 
     vi.mocked(bankListRepository.getList).mockResolvedValue(existingList)

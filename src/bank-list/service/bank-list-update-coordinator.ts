@@ -1,8 +1,12 @@
-import type { BanksEndpointProfile } from '../model/bank-list'
-import type { BankListUpdateService } from './bank-list-update-service'
+import type { BanksEndpointProfile } from '@src/bank-list/model/bank-list'
+import type { BankListUpdateService } from '@src/bank-list/service/bank-list-update-service'
 
-import { getErrorMessage } from '../util/get-error-message'
 import { logger } from '@govuk-one-login/cri-logger'
+import { getErrorMessage } from '@src/bank-list/util/get-error-message'
+
+interface BankListUpdateCoordinatorCollaborators {
+  updateBankList: BankListUpdateService
+}
 
 interface BankListUpdateCoordinatorConfig {
   profiles: readonly BanksEndpointProfile[]
@@ -11,10 +15,6 @@ interface BankListUpdateCoordinatorConfig {
 interface BankListUpdateCoordinatorFailure {
   profile: BanksEndpointProfile
   reason: string
-}
-
-interface BankListUpdateCoordinatorCollaborators {
-  updateBankList: BankListUpdateService
 }
 
 export const createBankListUpdateCoordinator = (

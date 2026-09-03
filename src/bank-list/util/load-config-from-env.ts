@@ -1,6 +1,6 @@
 // Note: this could be moved out into common/util and renamed more generically EndpointProfile
 
-import { BanksEndpointProfile } from '../model/bank-list'
+import { BanksEndpointProfile } from '@src/bank-list/model/bank-list'
 
 const knownProfiles = Object.values(BanksEndpointProfile) as BanksEndpointProfile[]
 

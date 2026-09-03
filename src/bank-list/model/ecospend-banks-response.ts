@@ -1,4 +1,4 @@
-import type { StoredBank } from './bank-list'
+import type { StoredBank } from '@src/bank-list/model/bank-list'
 
 import { z } from 'zod'
 

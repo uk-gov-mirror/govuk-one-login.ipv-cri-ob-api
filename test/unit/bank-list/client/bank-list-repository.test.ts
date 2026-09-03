@@ -23,7 +23,7 @@ const banks: StoredBank[] = [
 const buildBankListEntity = (overrides: Partial<BankListEntity> = {}): BankListEntity => ({
   banks,
   profile: BanksEndpointProfile.STUB,
-  refreshedAt: 1_800_000_000,
+  refreshedAtSeconds: 1_800_000_000,
   ...overrides
 })
 

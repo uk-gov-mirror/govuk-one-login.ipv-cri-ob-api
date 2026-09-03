@@ -1,10 +1,14 @@
-import type { BankListProvider } from '../client/bank-list-provider'
-import type { BankListRepository } from '../client/bank-list-repository'
-import type { BanksEndpointProfile } from '../model/bank-list'
+import type { BankListRepository } from '@src/bank-list/client/bank-list-repository'
+import type { BanksEndpointProfile } from '@src/bank-list/model/bank-list'
+import type { BankListProvider } from '@src/bank-list/model/bank-list-provider'
 
 export interface BankListUpdateResponse {
   updated: boolean
 }
+
+export type BankListUpdateService = (
+  profile: BanksEndpointProfile
+) => Promise<BankListUpdateResponse>
 
 interface BankListUpdateCollaborators {
   bankListProvider: BankListProvider
@@ -15,10 +19,6 @@ interface BankListUpdateConfig {
   refreshAfterSeconds: number
 }
 
-export type BankListUpdateService = (
-  profile: BanksEndpointProfile
-) => Promise<BankListUpdateResponse>
-
 export const createBankListUpdateService = (
   collaborators: BankListUpdateCollaborators,
   config: BankListUpdateConfig
@@ -28,8 +28,7 @@ export const createBankListUpdateService = (
     const nowSeconds = Math.floor(Date.now() / 1000)
 
     if (existingList) {
-      const ageSeconds = nowSeconds - existingList.refreshedAt
-
+      const ageSeconds = nowSeconds - existingList.refreshedAtSeconds
       if (ageSeconds < config.refreshAfterSeconds) {
         return { updated: false }
       }
@@ -42,7 +41,7 @@ export const createBankListUpdateService = (
     await collaborators.bankListRepository.replaceList({
       profile,
       banks,
-      refreshedAt: nowSeconds
+      refreshedAtSeconds: nowSeconds
     })
 
     return { updated: true }
