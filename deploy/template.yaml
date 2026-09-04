@@ -817,6 +817,12 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-ecospend-token-rotator"
       RetentionInDays: !FindInMap [ EnvironmentConfiguration, !Ref Environment, logGroupRetentionInDays ]
 
+  EcospendTokenRotatorDeployCheck:
+    Type: Custom::EcospendTokenRotate
+    Properties:
+      ServiceToken: !Ref EcospendTokenRotatorFunction.Alias
+      Version: !Ref EcospendTokenRotatorFunction.Version
+
   ####################################################################
   #                                                                  #
   #  Bank List                                                       #

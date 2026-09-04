@@ -15,7 +15,8 @@ export default defineConfig({
           alias: {
             '@common': path.resolve(import.meta.dirname, 'src/common'),
             '@lib': path.resolve(import.meta.dirname, 'src/lib'),
-            '@src': path.resolve(import.meta.dirname, 'src')
+            '@src': path.resolve(import.meta.dirname, 'src'),
+            '@test-fixtures': path.resolve(import.meta.dirname, 'test/fixtures')
           }
         },
         test: {
@@ -34,7 +35,9 @@ export default defineConfig({
             POWERTOOLS_METRICS_NAMESPACE: 'ob-api',
             POWERTOOLS_SERVICE_NAME: 'ob-api',
             SESSION_DB_TABLE_NAME: 'test-session-table',
+            TOKEN_ROTATOR_CREDENTIALS_PATH: '/test-prefix/token-rotator/credentials',
             TOKEN_ROTATOR_DB_TABLE_NAME: 'test-token-rotator-table',
+            TOKEN_ROTATOR_REFRESH_WINDOW_SECONDS: '300',
             VC_DOMAIN: 'review-ob.unit-test.account.gov.uk'
           },
           include: ['test/unit/**/*.test.ts'],

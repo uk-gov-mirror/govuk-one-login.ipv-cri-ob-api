@@ -1,12 +1,14 @@
 import type { EndpointProfile } from '@common/model/endpoint-profile'
-import type { ScheduledEvent } from 'aws-lambda'
+import type { CloudFormationCustomResourceEvent, ScheduledEvent } from 'aws-lambda'
 
 import { dynamoDBDocumentClient } from '@common/client/dynamodb-client'
 import { ssmConfigProvider } from '@common/client/ssm-config-provider'
-import { injectLambdaContext, latencyRecorder, resultRecorder } from '@common/handler/middleware'
+import { latencyRecorder, resultRecorder } from '@common/handler/middleware/recorders'
+import { cfnCustomResourceEventResponder } from '@common/handler/middleware/responders'
+import { isCfnCustomResourceEvent } from '@common/util/cfn-custom-resource'
 import { requireEnv } from '@common/util/env'
 import { parseProfiles } from '@common/util/parse-profiles'
-import { logger } from '@govuk-one-login/cri-logger'
+import { injectLambdaContext, logger } from '@govuk-one-login/cri-logger'
 import { logMetrics, metrics } from '@govuk-one-login/cri-metrics'
 import {
   createTokenRotationService,
@@ -16,6 +18,8 @@ import { createDynamoTokenRepository } from '@govuk-one-login/cri-token-rotator/
 import { ecospendTokenStrategy } from '@src/ecospend-token/service/ecospend-token-strategy'
 
 import middy from '@middy/core'
+
+type EcospendTokenRotatorEvent = CloudFormationCustomResourceEvent | ScheduledEvent
 
 const tokenCredentialsPathPrefix = requireEnv('TOKEN_ROTATOR_CREDENTIALS_PATH')
 
@@ -40,15 +44,21 @@ const ecospendTokenRotationService = createTokenRotationService<EndpointProfile>
   }
 )
 
-const lambdaHandler = async (_event: ScheduledEvent) => {
+const lambdaHandler = async (event: EcospendTokenRotatorEvent): Promise<void> => {
   logger.info('Lambda invoked')
 
+  if (isCfnCustomResourceEvent(event)) {
+    if (event.RequestType === 'Delete') return
+    await ecospendTokenRotationService.rotateAll({ force: true })
+    return
+  }
   await ecospendTokenRotationService.rotateAll()
 }
 
-export const handler = middy<ScheduledEvent, void>()
+export const handler = middy<EcospendTokenRotatorEvent, void>()
   .use(latencyRecorder()) // latencyRecorder is first
   .use(resultRecorder())
   .use(injectLambdaContext(logger, { resetKeys: true }))
   .use(logMetrics(metrics, { captureColdStartMetric: true }))
+  .use(cfnCustomResourceEventResponder())
   .handler(lambdaHandler)

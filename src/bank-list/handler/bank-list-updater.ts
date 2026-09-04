@@ -3,17 +3,12 @@ import type { ScheduledEvent } from 'aws-lambda'
 import { createBaseHttpClient } from '@common/client/base-http-client'
 import { dynamoDBDocumentClient } from '@common/client/dynamodb-client'
 import { ssmConfigProvider } from '@common/client/ssm-config-provider'
-import {
-  injectLambdaContext,
-  latencyRecorder,
-  logMetrics,
-  resultRecorder
-} from '@common/handler/middleware'
+import { latencyRecorder, resultRecorder } from '@common/handler/middleware/recorders'
 import { EndpointProfile } from '@common/model/endpoint-profile'
 import { requireEnv } from '@common/util/env'
 import { parseProfiles } from '@common/util/parse-profiles'
-import { logger } from '@govuk-one-login/cri-logger'
-import { metrics } from '@govuk-one-login/cri-metrics'
+import { injectLambdaContext, logger } from '@govuk-one-login/cri-logger'
+import { logMetrics, metrics } from '@govuk-one-login/cri-metrics'
 import { createTokenRetrievalService } from '@govuk-one-login/cri-token-rotator'
 import { createDynamoTokenRepository } from '@govuk-one-login/cri-token-rotator/dynamodb'
 import { createBankListRepository } from '@src/bank-list/client/bank-list-repository'

@@ -1,25 +1,17 @@
-import type * as CriMetricsModule from '@govuk-one-login/cri-metrics'
-import type { Request } from '@middy/core'
-import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda'
+import type * as CriMetrics from '@govuk-one-login/cri-metrics'
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
 
-import { latencyRecorder } from '@common/handler/middleware'
+import { latencyRecorder } from '@common/handler/middleware/recorders'
 import { LambdaMetricDimensions, LambdaStartState } from '@common/model/metrics/lambda-metrics'
+import { buildMiddyRequest } from '@test-fixtures/middy/request'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import * as criMetrics from '@govuk-one-login/cri-metrics'
 
 vi.mock('@govuk-one-login/cri-metrics', async (importOriginal) => ({
-  ...(await importOriginal<typeof CriMetricsModule>()),
+  ...(await importOriginal<typeof CriMetrics>()),
   captureMetricWithDimensions: vi.fn()
 }))
-
-const buildRequest = (): Request<APIGatewayProxyEvent, APIGatewayProxyResult> => ({
-  context: { functionName: 'fn-name' } as Context,
-  error: null,
-  event: {} as APIGatewayProxyEvent,
-  internal: {},
-  response: null
-})
 
 const expectStartStateOnCall = (callIndex: number, expected: LambdaStartState): void => {
   expect(criMetrics.captureMetricWithDimensions).toHaveBeenNthCalledWith(
@@ -38,9 +30,9 @@ describe('latencyRecorder', () => {
 
   it('marks first invoke cold and subsequent hot', async () => {
     const recorder = latencyRecorder()
-    const firstRequest = buildRequest()
-    const secondRequest = buildRequest()
-    const thirdRequest = buildRequest()
+    const firstRequest = buildMiddyRequest<APIGatewayProxyEvent, APIGatewayProxyResult>({})
+    const secondRequest = buildMiddyRequest<APIGatewayProxyEvent, APIGatewayProxyResult>({})
+    const thirdRequest = buildMiddyRequest<APIGatewayProxyEvent, APIGatewayProxyResult>({})
 
     await recorder.before!(firstRequest)
     await recorder.after!(firstRequest)
@@ -57,8 +49,8 @@ describe('latencyRecorder', () => {
 
   it('flips cold to hot on first invoke error', async () => {
     const recorder = latencyRecorder()
-    const erroringRequest = buildRequest()
-    const followUpRequest = buildRequest()
+    const erroringRequest = buildMiddyRequest<APIGatewayProxyEvent, APIGatewayProxyResult>({})
+    const followUpRequest = buildMiddyRequest<APIGatewayProxyEvent, APIGatewayProxyResult>({})
 
     await recorder.before!(erroringRequest)
     await recorder.onError!(erroringRequest)
@@ -73,7 +65,7 @@ describe('latencyRecorder', () => {
   it('does not emit a latency metric if before() never ran', async () => {
     const recorder = latencyRecorder()
 
-    await recorder.after!(buildRequest())
+    await recorder.after!(buildMiddyRequest<APIGatewayProxyEvent, APIGatewayProxyResult>({}))
 
     expect(criMetrics.captureMetricWithDimensions).not.toHaveBeenCalled()
   })

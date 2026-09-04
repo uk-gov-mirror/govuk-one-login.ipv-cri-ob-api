@@ -4,19 +4,13 @@ import { createBaseHttpClient } from '@common/client/base-http-client'
 import { dynamoDBDocumentClient } from '@common/client/dynamodb-client'
 import { createSessionRepository } from '@common/client/session-repository'
 import { ssmConfigProvider } from '@common/client/ssm-config-provider'
-import {
-  errorHandler,
-  httpHeaderNormalizer,
-  injectLambdaContext,
-  latencyRecorder,
-  logMetrics,
-  resultRecorder
-} from '@common/handler/middleware'
+import { latencyRecorder, resultRecorder } from '@common/handler/middleware/recorders'
+import { errorResponder } from '@common/handler/middleware/responders'
 import { EndpointProfile } from '@common/model/endpoint-profile'
 import { requireEnv } from '@common/util/env'
 import { requireSessionId } from '@common/util/headers'
-import { logger } from '@govuk-one-login/cri-logger'
-import { metrics } from '@govuk-one-login/cri-metrics'
+import { injectLambdaContext, logger } from '@govuk-one-login/cri-logger'
+import { logMetrics, metrics } from '@govuk-one-login/cri-metrics'
 import { createTokenRetrievalService } from '@govuk-one-login/cri-token-rotator'
 import { createDynamoTokenRepository } from '@govuk-one-login/cri-token-rotator/dynamodb'
 import { createConsentsRepository } from '@src/consents/client/consents-repository'
@@ -24,6 +18,7 @@ import { createEcospendConsentsProvider } from '@src/consents/client/ecospend-co
 import { createConsentsService } from '@src/consents/service/consents-service'
 
 import middy from '@middy/core'
+import httpHeaderNormalizer from '@middy/http-header-normalizer'
 
 const consentsConfigPathPrefix = `/${requireEnv('PARAMETER_PREFIX')}/consents`
 
@@ -81,5 +76,5 @@ export const handler = middy<APIGatewayProxyEvent, APIGatewayProxyResult>()
   .use(injectLambdaContext(logger, { resetKeys: true }))
   .use(logMetrics(metrics, { captureColdStartMetric: true }))
   .use(httpHeaderNormalizer())
-  .use(errorHandler()) // errorHandler is last
+  .use(errorResponder()) // errorResponder is last
   .handler(lambdaHandler)

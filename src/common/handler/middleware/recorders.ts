@@ -1,5 +1,5 @@
 import type { MiddlewareObj } from '@middy/core'
-import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda'
+import type { Context } from 'aws-lambda'
 
 import {
   LAMBDA_LATENCY_METRIC_NAME,
@@ -8,21 +8,9 @@ import {
   LambdaResult,
   LambdaStartState
 } from '@common/model/metrics/lambda-metrics'
-import { formatErrorResponse } from '@govuk-one-login/cri-error-response'
 import { captureMetricWithDimensions, MetricUnit } from '@govuk-one-login/cri-metrics'
 
-export { injectLambdaContext } from '@govuk-one-login/cri-logger'
-export { logMetrics } from '@govuk-one-login/cri-metrics'
-export { default as httpHeaderNormalizer } from '@middy/http-header-normalizer'
-
-// TODO this need changed, this will leak internal error messages to the user
-export const errorHandler = (): MiddlewareObj<APIGatewayProxyEvent, APIGatewayProxyResult> => ({
-  onError: (request) => {
-    request.response = formatErrorResponse(request.error)
-  }
-})
-
-export const latencyRecorder = <TEvent, TResult>(): MiddlewareObj<TEvent, TResult> => {
+const latencyRecorder = <TEvent, TResult>(): MiddlewareObj<TEvent, TResult> => {
   const startTimes = new WeakMap<object, number>()
   let startState: LambdaStartState = LambdaStartState.COLD
 
@@ -50,7 +38,7 @@ export const latencyRecorder = <TEvent, TResult>(): MiddlewareObj<TEvent, TResul
   }
 }
 
-export const resultRecorder = <TEvent, TResult>(): MiddlewareObj<TEvent, TResult> => {
+const resultRecorder = <TEvent, TResult>(): MiddlewareObj<TEvent, TResult> => {
   const emit = (request: { context: Context }, result: LambdaResult): void => {
     captureMetricWithDimensions(
       LAMBDA_RESULT_METRIC_NAME,
@@ -72,3 +60,5 @@ export const resultRecorder = <TEvent, TResult>(): MiddlewareObj<TEvent, TResult
     }
   }
 }
+
+export { latencyRecorder, resultRecorder }
