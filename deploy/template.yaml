@@ -436,6 +436,167 @@ Resources:
 
   ####################################################################
   #                                                                  #
+  # Consents Function                                                 #
+  #                                                                  #
+  ####################################################################
+
+  ConsentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-consents"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sessionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sessionId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [ IsProduction, true, false ]
+
+  ConsentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-consents"
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-AWSServicesEndpointSecurityGroupId"
+        SubnetIds:
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-ProtectedSubnetIdA"
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-ProtectedSubnetIdB"
+          - Fn::ImportValue:
+              !Sub "${VpcStackName}-ProtectedSubnetIdC"
+      Handler: consents.handler
+      CodeUri: ../
+      LoggingConfig:
+        LogGroup: !Ref ConsentsFunctionLogGroup
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: !Sub "${CriIdentifier}-consents"
+          AUDIT_COMPONENT_ID: !FindInMap [ EnvironmentConfiguration, !Ref Environment, vcDomain ]
+          AUDIT_EVENT_NAME_PREFIX: !Ref AuditEventNamePrefix
+          AUDIT_QUEUE_URL: !ImportValue txma-infrastructure-AuditEventQueueUrl
+          CONSENTS_DB_TABLE_NAME: !Ref ConsentsTable
+          SESSION_DB_TABLE_NAME: !GetAtt OAuth.Outputs.DbSessionTableName
+          TOKEN_ROTATOR_DB_TABLE_NAME: !Ref TokenRotatorTable
+      AutoPublishAlias: live
+      AutoPublishAliasAllProperties: true
+      DeploymentPreference:
+        Enabled: true
+        Type: !Ref LambdaDeploymentPreference
+        Role: !GetAtt CodeDeployServiceRole.Arn
+        Alarms: !If
+          - UseCanaryDeploymentAlarms
+          - [ !Ref ConsentsFunctionCanaryErrors, !Ref ConsentsFunctionCanary5xxErrors ]
+          - [ !Ref AWS::NoValue ]
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBReadPolicy:
+            TableName: !GetAtt OAuth.Outputs.DbSessionTableName
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ConsentsTable.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt TokenRotatorTable.Arn
+        - SSMParameterReadPolicy:
+            ParameterName: !If
+              - UseParameterPrefix
+              - !Sub "${ParameterPrefix}/consents/*"
+              - !Sub "${AWS::StackName}/consents/*"
+        - SQSSendMessagePolicy:
+            QueueName: !ImportValue txma-infrastructure-AuditEventQueueName
+        - KMSDecryptPolicy:
+            KeyId: !GetAtt OAuth.Outputs.DbCustomerManagedKeyID
+        - Statement:
+            Effect: Allow
+            Action:
+              - kms:Decrypt
+              - kms:GenerateDataKey
+            Resource: !ImportValue txma-infrastructure-AuditEventQueueEncryptionKeyArn
+      ProvisionedConcurrencyConfig:
+        !If
+        - AddProvisionedConcurrency
+        - ProvisionedConcurrentExecutions: !FindInMap [ EnvironmentConfiguration, !Ref Environment, provisionedConcurrentExecutions ]
+        - !Ref AWS::NoValue
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Sourcemap: true
+        Target: node24
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - src/consents/handler/consents.ts
+        External:
+          - "@aws-sdk/*"
+        Banner:
+          - js=import { createRequire } from 'module'; const require = createRequire(import.meta.url);
+
+  ConsentsFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-consents"
+      RetentionInDays: !Ref LogGroupRetentionInDays
+
+  ConsentsFunctionAliasPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ConsentsFunction.Alias
+      Principal: apigateway.amazonaws.com
+
+  StubConsentsEndpointParameter:
+    Condition: IsDeployedFromPipeline
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/consents/STUB/endpoint-url"
+      Description: Consents endpoint for STUB
+      Type: String
+      Value: !Sub
+        - ${BaseUrl}/api/v3.0/consents
+        - BaseUrl: !FindInMap [ ProfileEndpoints, !Ref Environment, StubEndpointUrl ]
+
+  UatConsentsEndpointParameter:
+    Condition: IsDeployedFromPipeline
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/consents/UAT/endpoint-url"
+      Description: Consents endpoint for UAT
+      Type: String
+      Value: !Sub
+        - ${BaseUrl}/api/v3.0/consents
+        - BaseUrl: !FindInMap [ ProfileEndpoints, !Ref Environment, UatEndpointUrl ]
+
+  LiveConsentsEndpointParameter:
+    Condition: IsDeployedFromPipeline
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/consents/LIVE/endpoint-url"
+      Description: Consents endpoint for LIVE
+      Type: String
+      Value: !Sub
+        - ${BaseUrl}/api/v3.0/consents
+        - BaseUrl: !FindInMap [ ProfileEndpoints, !Ref Environment, LiveEndpointUrl ]
+
+  ####################################################################
+  #                                                                  #
   # Issue Credential Function                                        #
   #                                                                  #
   ####################################################################
@@ -1227,6 +1388,64 @@ Resources:
           Value: !Ref Environment
         - Name: Resource
           Value: /credential/issue
+      Statistic: Sum
+      Unit: Count
+      Period: 60
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ConsentsFunctionCanaryErrors:
+    Type: AWS::CloudWatch::Alarm
+    Condition: UseCanaryDeploymentAlarms
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !ImportValue build-notifications-WarningAlertsTopicArn
+      OKActions:
+        - !ImportValue build-notifications-WarningAlertsTopicArn
+      AlarmName: !Sub "${AWS::StackName}-${Environment}-consents-function-canary-errors"
+      AlarmDescription: "Errors returned from the Consents Lambda."
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ConsentsFunction
+        - Name: ExecutedVersion
+          Value: !GetAtt ConsentsFunction.Version.Version
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Unit: Count
+      Period: 60
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ConsentsFunctionCanary5xxErrors:
+    Type: AWS::CloudWatch::Alarm
+    Condition: UseCanaryDeploymentAlarms
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !ImportValue build-notifications-WarningAlertsTopicArn
+      OKActions:
+        - !ImportValue build-notifications-WarningAlertsTopicArn
+      AlarmName: !Sub "${AWS::StackName}-${Environment}-consents-function-canary-5XX"
+      AlarmDescription: "Consents Lambda returning 5xx response."
+      Namespace: AWS/ApiGateway
+      MetricName: 5XXError
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub "${AWS::StackName}-PrivateAPI"
+        - Name: Method
+          Value: POST
+        - Name: Stage
+          Value: !Ref Environment
+        - Name: Resource
+          Value: /consents
       Statistic: Sum
       Unit: Count
       Period: 60

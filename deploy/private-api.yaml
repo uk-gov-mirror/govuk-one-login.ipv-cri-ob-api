@@ -44,6 +44,53 @@ paths:
         uri:
           Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BankListRetrieverFunction.Arn}:live/invocations
         type: "aws_proxy"
+  /consents:
+    post:
+      summary: "POST a bank consent for the caller's session, reusing an unexpired one if present"
+      parameters:
+        - $ref: "#/components/parameters/SessionHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentRequest"
+      responses:
+        "200":
+          description: "200 response - an unexpired consent for the same bank was reused"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CachedConsent"
+        "201":
+          description: "201 response - a new consent was created"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Consent"
+        "400":
+          description: "400 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "401 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: "500 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConsentsFunction.Arn}:live/invocations
+        type: "aws_proxy"
   /authorization:
     get:
       parameters:
@@ -243,6 +290,51 @@ components:
           type: "string"
         serviceStatus:
           type: "boolean"
+    ConsentRequest:
+      required:
+        - "bank_id"
+        - "return_url"
+      type: "object"
+      properties:
+        bank_id:
+          type: "string"
+          minLength: 1
+          example: "example-bank"
+        return_url:
+          description: "The http or https URL the bank redirects the user back to"
+          type: "string"
+          format: "uri"
+          example: "https://review-ob.dev.account.gov.uk/return"
+    Consent:
+      required:
+        - "id"
+        - "url"
+        - "urlExpirySeconds"
+      type: "object"
+      properties:
+        id:
+          description: "The Ecospend consent id"
+          type: "string"
+          example: "1fbc5730-9d17-416d-b2ca-0be90e1e93f5"
+        url:
+          description: "The bank consent URL the user is sent to. Valid for 4 minutes"
+          type: "string"
+          format: "uri"
+        urlExpirySeconds:
+          description: "Epoch seconds at which the bank consent URL stops being valid"
+          type: "integer"
+          format: "int64"
+    CachedConsent:
+      allOf:
+        - $ref: "#/components/schemas/Consent"
+        - required:
+            - "cached"
+          type: "object"
+          properties:
+            cached:
+              type: "boolean"
+              enum:
+                - true
 
 x-amazon-apigateway-request-validators:
   Validate both:
