@@ -35,7 +35,7 @@
     "@aws-sdk/credential-providers": "3.1168.0",
     "@cucumber/cucumber": "13.3.0",
     "@cucumber/html-formatter": "23.1.0",
-    "@smithy/signature-v4": "4.2.4",
+    "@smithy/signature-v4": "5.7.5",
     "@types/aws-lambda": "8.10.164",
     "@types/node": "24.19.2",
     "@vitest/coverage-v8": "4.1.12",
