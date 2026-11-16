@@ -37,22 +37,19 @@ describe('ecospend-token-rotator handler', () => {
   it('calls rotateAll without force for a scheduled event', async () => {
     await handler(buildScheduledEvent(), buildContext())
 
-    expect(mockRotateAll).toHaveBeenCalledOnce()
-    expect(mockRotateAll).toHaveBeenCalledWith()
+    expect(mockRotateAll).toHaveBeenCalledExactlyOnceWith()
   })
 
   it('calls rotateAll with force for a CloudFormation Create event', async () => {
     await handler(buildCfnCustomResourceEvent('Create'), buildContext())
 
-    expect(mockRotateAll).toHaveBeenCalledOnce()
-    expect(mockRotateAll).toHaveBeenCalledWith({ force: true })
+    expect(mockRotateAll).toHaveBeenCalledExactlyOnceWith({ force: true })
   })
 
   it('calls rotateAll with force for a CloudFormation Update event', async () => {
     await handler(buildCfnCustomResourceEvent('Update'), buildContext())
 
-    expect(mockRotateAll).toHaveBeenCalledOnce()
-    expect(mockRotateAll).toHaveBeenCalledWith({ force: true })
+    expect(mockRotateAll).toHaveBeenCalledExactlyOnceWith({ force: true })
   })
 
   it('does nothing on a CloudFormation Delete event', async () => {
