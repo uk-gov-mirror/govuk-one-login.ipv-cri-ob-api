@@ -82,10 +82,35 @@ jobs:
           AWS_REGION: ${{ needs.deploy-preview.outputs.aws-region }}
         run: bash test/acceptance-tests/run-tests.sh
 
-      - name: Delete preview test stack
-        if: always()
+  delete-preview:
+    name: Delete preview stack
+    permissions:
+      id-token: write
+    needs:
+      - deploy-preview
+      - api-tests
+    if: ${{ always() && needs.deploy-preview.outputs.stack-name != '' }}
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Assume AWS Role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.DEV_GHA_PREVIEW_ROLE_ARN }}
+          aws-region: ${{ needs.deploy-preview.outputs.aws-region }}
+
+      - name: Delete stack
+        env:
+          STACK_NAME: ${{ needs.deploy-preview.outputs.stack-name }}
         run: |
-          aws cloudformation delete-stack --region eu-west-2 --stack-name ${{ needs.deploy-preview.outputs.stack-name }}
+          for attempt in 1 2 3 4; do
+            aws cloudformation delete-stack --stack-name "$STACK_NAME"
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" && exit 0
+            echo "Delete attempt $attempt failed, retrying in $((attempt * 60))s"
+            sleep $((attempt * 60))
+          done
+          exit 1
 
   merge-status:
     name: Merge status
