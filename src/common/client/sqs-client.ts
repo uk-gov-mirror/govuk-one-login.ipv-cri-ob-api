@@ -1,27 +1,28 @@
 import type { SQSClient } from '@aws-sdk/client-sqs'
 import { SendMessageCommand } from '@aws-sdk/client-sqs'
+import type { WebhookEvent } from '@src/webhook/model/webhook-request'
 
 export interface Config {
   queueUrl: string
 }
 
-export interface SQSProvider {
-  send: (eventId: string) => Promise<void>
+export interface SQSPublisher {
+  publish: (event: unknown) => Promise<void>
 }
 
-export const createSqsProvider = ({
+export const createSqsPublisher = ({
   client,
   config
 }: {
   client: SQSClient
   config: Config
-}): SQSProvider => {
+}): SQSPublisher => {
   return {
-    send: async (eventId: string) => {
+    publish: async (event) => {
       await client.send(
         new SendMessageCommand({
           QueueUrl: config.queueUrl,
-          MessageBody: eventId
+          MessageBody: JSON.stringify(event)
         })
       )
     }
